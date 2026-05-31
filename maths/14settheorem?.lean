@@ -27,7 +27,8 @@ def aux : Fin 3 → Fin 3 → Fin 3
   | 0, 2 => 0
   | 1, 0 => 1
   | 2, 0 => 0
-  | 1, 1 =>
+  | 1, 1 => sorry
+  | _, _ => sorry
 
 instance : Mul FSTH where
   mul
@@ -44,10 +45,11 @@ inductive ftsþ
 
 namespace ftsþ
 
+/-
  K IK KI IKI
  KIK IKIK KIKI IKIKI
  KIKIK IKIKIK KIKIKI IKIKIKI
-
+-/
 
 
 instance : One ftsþ where
