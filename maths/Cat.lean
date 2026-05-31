@@ -1564,3 +1564,40 @@ theorem trueIsTerminalIn2 : isTerminal' 2 true := by
       case false => contradiction
       case true => contradiction
     case some b => congr
+
+/-
+def TypeCat.{u} (α : Type u) : Cat where
+  C0 := α
+  C1 := α × α
+  C2 := α × α × α
+  dom | (b,a) => a
+  cod | (b,a) => b
+  ident a := (a,a)
+  left | (c,b,a) => (c,b)
+  rite | (c,b,a) => (b,a)
+  comp | (c,b,a) => (c,a)
+  pair | (b,a), (d,c), h => (b,a,c)
+  ident_dom x := by rfl
+  ident_cod x := by rfl
+  C2_ok p := by rfl
+  dom_comp p := by rfl
+  cod_comp p := by rfl
+  left_pair a b h := by rfl
+  rite_pair a b h := by
+    simp! at h
+    simp!
+    rw [h]
+  ident_lid x := by rfl
+  ident_rid x := by rfl
+
+theorem typecatump :
+  ∀ (C : Cat.{u}) (x : C.C1), ∃ (α : Type u) (f : Funct (TypeCat α) C),
+    (∀ c : C.C0, ∃ t : (TypeCat α).C0, c = f.F0 t) ∧
+    (∀ c : C.C1, ∃ t : (TypeCat α).C1, c = f.F1 t) := by
+  intro C x
+  use C.C0
+  use {
+    F0 := id
+    F1 := if ∃
+  }
+-/
