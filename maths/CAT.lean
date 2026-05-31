@@ -486,10 +486,65 @@ structure Funct (C D : Cat) where
   -- hcod : F0 ∘ C.cod = D.cod ∘ F1
   hdom : ∀ x, D.dom (F1 x) = F0 (C.dom x)
   hcod : ∀ x, D.cod (F1 x) = F0 (C.cod x)
-  F2 : C.C2 → D.C2 := fun x => D.pair (F1 (C.left x)) (F1 (C.rite x)) (by
+  F2 : C.C2 → D.C2 := fun x ↦ D.pair (F1 (C.left x)) (F1 (C.rite x)) (by
     rw [hdom, hcod]
     congr
     exact C.C2_ok x)
+
+-- Idenity Functor
+
+instance {C : Cat} : One (Funct C C) where
+  one := {
+    F0 := id
+    F1 := id
+    hdom := by simp
+    hcod := by simp
+  }
+
+@[simp]
+lemma F01 {C} : @Funct.F0 C C 1 = id := by rfl
+
+@[simp]
+lemma F11 {C} : @Funct.F1 C C 1 = id := by rfl
+
+@[simp]
+lemma Funct.F2_def {C D} {F : Funct C D} :
+  F.F2 = fun x ↦ D.pair (F.F1 (C.left x)) (F.F1 (C.rite x)) (by
+    rw [hdom, hcod]
+    congr
+    exact C.C2_ok x)
+  := by
+    apply funext
+    intro x
+    sorry
+
+-- Functor Composition
+
+instance {A B C} : HMul (Funct B C) (Funct A B) (Funct A C) where
+  hMul F G := {
+    F0 := F.F0 ∘ G.F0
+    F1 := F.F1 ∘ G.F1
+    hdom := by
+      intro x
+      rw [Function.comp_apply,
+          Function.comp_apply,
+          F.hdom (G.F1 x),
+          G.hdom x]
+    hcod := by
+      intro x
+      rw [Function.comp_apply,
+          Function.comp_apply,
+          F.hcod (G.F1 x),
+          G.hcod x]
+  }
+
+lemma Funct.one_mul {C D} {F : Funct C D} : (1 : Funct D D) * F = F := by
+  rw [instOneFunct, instHMulFunct]
+  rcases F with ⟨F0,F1,hdom,hcod,F2⟩
+  simp!
+  apply funext
+  intro x
+  sorry
 
 -- Category Isomorphism:
 
@@ -501,6 +556,19 @@ structure iso (C D : Cat) where
   hc1 : ∀ a, G.F1 (F.F1 a) = a
   hd1 : ∀ a, F.F1 (G.F1 a) = a
 -- is this a sufficient def of category equivalence?
+
+lemma obviously_not? {C D : Cat} : ∀ (i : iso C D) x,
+  i.G.F0 (D.dom (i.F.F1 x)) = C.dom x := by
+    intro ⟨F,G,hc0,hd0,hc1,hd1⟩
+    intro x
+    simp!
+
+structure iso' (C D : Cat) where
+  F : Funct C D
+  G : Funct D C
+  hc : G * F = 1
+  hd : F * G = 1
+
 
 def isom (C D : Cat) : Prop :=
   ∃ (F : Funct C D) (G : Funct D C),
@@ -771,7 +839,6 @@ lemma h (wi : wierdIso C D) : ∀ x, wi.F0 (C.comp (wi.G1 x)) = D.cod x := by
   rw [hy1, hy2]
   sorry
 
-
 def CatSucc (C : Cat) : Cat where
   C0 := Option C.C0
   C1 := C.C1 ⊕ Option C.C0
@@ -878,10 +945,22 @@ def CatSucc (C : Cat) : Cat where
 @[match_pattern, simp]
 instance (n : ℕ) : OfNat Cat n := ⟨Poset (Fin n)⟩
 
+def aux {α : Type} (n : ℕ) (i : ℕ) (f : Fin n → α) : Multiset α :=
+  if h : i < n then f ⟨i, h⟩ ::ₘ (aux n i.succ f) else {}
+
+instance {n : ℕ} {C : Cat} {f : Fin n → C.C1} : Fintype (Set C.C1) where
+  elems := {
+    val := (SetLike.coe) <$> Multiset.powerset (aux n 0 f)
+    nodup := by
+      unfold Multiset.Nodup
+  }
+
 -- homset:
 
 @[simp]
 def hom (C : Cat) (d c : C.C0) : Set C.C1 := { x | C.dom x = d ∧ C.cod x = c }
+
+def this_kind_of_cat {C : Cat} {A B : C.C0} := ∀ a ∈ hom C A B, ∀ b ∈ hom C A B, (∀ c : C.C0, |hom C A c| * (Fintype.card (hom C c B)) = 0) ∨ (a = b)
 
 -- adding zero does nothing:
 
@@ -1123,11 +1202,20 @@ structure C1C1 (C D : Cat) (c : C.C0) (d : D.C0) where
   hc : C.cod Carrow = c
   hd : D.dom Darrow = d
 
+structure C2D (C D : Cat) (c : C.C0) (d : D.C0) where
+  arrow : C1C1 C D c d
+  Darrow : D.C1
+  h : D.dom Darrow = D.cod arrow.Darrow
+
+structure C2C (C D : Cat) (c : C.C0) (d : D.C0) where
+  arrow : C1C1 C D c d
+  Carrow : C.C1
+  h : C.cod Carrow = C.dom arrow.Carrow
 
 def connect_once (C D : Cat) (c : C.C0) (d : D.C0) : Cat where
   C0 := C.C0 ⊕ D.C0
   C1 := (C.C1 ⊕ D.C1) ⊕ C1C1 C D c d
-  C2 := (C.C2 ⊕ D.C2) ⊕ ()
+  C2 := (C.C2 ⊕ D.C2) ⊕ (C2C C D c d ⊕ C2D C D c d)
   dom
     | Sum.inl (Sum.inl x) => Sum.inl (C.dom x)
     | Sum.inl (Sum.inr x) => Sum.inr (D.dom x)
@@ -1139,7 +1227,23 @@ def connect_once (C D : Cat) (c : C.C0) (d : D.C0) : Cat where
   ident
     | Sum.inl x => Sum.inl (Sum.inl (C.ident x))
     | Sum.inr x => Sum.inl (Sum.inr (D.ident x))
-  left x := x.left
+  left
+    | Sum.inl (Sum.inl x) => Sum.inl (Sum.inl (C.left x))
+    | Sum.inl (Sum.inr x) => Sum.inl (Sum.inr (D.left x))
+    | Sum.inr (Sum.inl x) => Sum.inl (Sum.inl (x.Carrow))
+    | Sum.inr (Sum.inr x) => Sum.inr (x.arrow)
+  rite
+    | Sum.inl (Sum.inl x) => Sum.inl (Sum.inl (C.rite x))
+    | Sum.inl (Sum.inr x) => Sum.inl (Sum.inr (D.rite x))
+    | Sum.inr (Sum.inl x) => Sum.inr (x.arrow)
+    | Sum.inr (Sum.inr x) => Sum.inl (Sum.inr (x.Darrow))
+  comp
+    | Sum.inl (Sum.inl x) => Sum.inl (Sum.inl (C.comp x))
+    | Sum.inl (Sum.inr x) => Sum.inl (Sum.inr (D.comp x))
+    | Sum.inr (Sum.inl x) => Sum.inr {
+      Carrow := C.comp (C.pair x.)
+    }
+    | Sum.inr (Sum.inr x) => Sum.inr ()
 
 /-
 theorem ofNatDistrAdd (m n : ℕ) : isom ((if h : 0 < n then MapCat (OfNat.ofNat m) (OfNat.ofNat n) (fun _ ↦ ⟨0, h⟩) else OfNat.ofNat m)) (OfNat.ofNat (m + n)) := by
@@ -1426,3 +1530,325 @@ theorem trueIsTerminalIn2 : isTerminal 2 ⟨0, by simp⟩ := by
   constructor
   · exact hdom
   grind
+
+-- (hd : C.dom m = C.dom n) (hc : C.cod m = C.cod n)
+example {C : Cat} : ∀ (m n : C.C1) (hd : C.dom m = C.dom n),
+  (m = n
+    ↔
+  ∀ (x : C.C1) (hm : C.dom m = C.cod x) (hn : C.dom n = C.cod x),
+    C.comp (C.pair m x hm) = C.comp (C.pair n x hn))
+  := by
+  intro m n hd
+  constructor
+  · intro hmn x hm hn
+    congr
+  intro h
+  have h' := h (C.ident (C.dom m)) (by rw [C.ident_cod]) (by rw [hd, C.ident_cod])
+  simp at h'
+
+
+-----
+
+structure C1' Index C0 (p : Index → C0 → C0 → Prop) where
+  index : Index
+  dom : C0
+  cod : C0
+  p_holds : p index dom cod
+
+structure C2' Index C0 p where
+  l : C1' Index C0 p
+  r : C1' Index C0 p
+  comp : C1' Index C0 p
+  C2_ok : l.dom = r.cod
+  dom_comp : comp.dom = r.dom
+  cod_comp : comp.cod = l.cod
+
+structure Cat' I C0 p where
+  ident : C0 → (C1' I C0 p)
+  ident_dom : ∀ x, (ident x).dom = x
+  ident_cod : ∀ x, (ident x).cod = x
+  ident_lid : ∀ (p : C2' I C0 p) (x : C0), p.l = ident x → p.comp = p.r
+  ident_rid : ∀ (p : C2' I C0 p) (x : C0), p.r = ident x → p.comp = p.l
+
+def NatPoset' : Cat' Unit ℕ (fun _ ↦ (· ≤ ·)) where
+  ident x := {
+    index := ()
+    dom := x
+    cod := x
+    p_holds := by rfl
+  }
+  ident_dom x := by rfl
+  ident_cod x := by rfl
+  ident_lid
+    | ⟨⟨_,ld,lc,lp⟩,⟨_,rd,rc,rp⟩,⟨_,cd,cc,cp⟩,c2ok,dcomp,ccomp⟩, x => by
+      simp! at *
+      simp! at *
+      intro hd hc
+      rw [dcomp, ccomp, hc, ←hd, c2ok]
+      constructor
+      · rfl
+      rfl
+  ident_rid
+    | ⟨⟨_,ld,lc,lp⟩,⟨_,rd,rc,rp⟩,⟨_,cd,cc,cp⟩,c2ok,dcomp,ccomp⟩, x => by
+      simp! at *
+      simp! at *
+      intro hd hc
+      rw [ccomp, dcomp, hd, ←hc, c2ok]
+      constructor
+      · rfl
+      rfl
+
+instance {n} : OfNat (Cat' Unit (Fin n) (fun _ ↦ (· ≤ ·))) n where
+  ofNat := {
+    ident x := {
+      index := ()
+      dom := x
+      cod := x
+      p_holds := by rfl
+    }
+    ident_dom x := by rfl
+    ident_cod x := by rfl
+    ident_lid p x := by
+      rcases p with ⟨_,⟨_,_,_,_⟩,⟨_,_,_,_⟩,_,_,_⟩
+      grind
+    ident_rid p x := by
+      rcases p with ⟨⟨_,_,_,_⟩,_,⟨_,_,_,_⟩,_,_,_⟩
+      grind
+  }
+
+def prod' (C : Cat' I C0 p) (D : Cat' J D0 q) :
+  Cat' (I × J) (C0 × D0) (fun i x y ↦ (p i.1 x.1 y.1) ∧ (q i.2 x.2 y.2)) where
+  ident x := {
+    index := ((C.ident x.1).index, (D.ident x.2).index)
+    dom := ((C.ident x.1).dom, (D.ident x.2).dom)
+    cod := ((C.ident x.1).cod, (D.ident x.2).cod)
+    p_holds := by
+      constructor
+      · exact (C.ident x.1).p_holds
+      exact (D.ident x.2).p_holds
+  }
+  ident_dom | (a,b) => by
+              simp!
+              rw [C.ident_dom a, D.ident_dom b]
+              constructor
+              · rfl
+              rfl
+  ident_cod | (a,b) => by
+              simp!
+              rw [C.ident_cod a, D.ident_cod b]
+              constructor
+              · rfl
+              rfl
+  ident_lid := by
+    intro y x
+    rcases y with ⟨⟨_,_,_,_⟩,⟨_,_,_,_⟩,⟨_,_,_,_⟩,_,_,_⟩
+    simp!
+    sorry
+  ident_rid := by sorry
+
+/-
+def Cat'toCat {I C0 : Type u} {p} (C : Cat' I C0 p) : Cat where
+  C0 := C0
+  C1 := C1' I C0 p
+  C2 := C2' I C0 p
+  dom x := x.dom
+  cod x := x.cod
+  ident := C.ident
+  left x := x.l
+  rite x := x.r
+  comp x := x.comp
+  pair x y h := {
+    l := x
+    r := y
+    comp := sorry
+    C2_ok := h
+    dom_comp := sorry
+    cod_comp := sorry
+  }
+  ident_dom := C.ident_dom
+  ident_cod := C.ident_cod
+  C2_ok x := x.C2_ok
+  dom_comp x := x.dom_comp
+  cod_comp x := x.cod_comp
+  left_pair a b h := by rfl
+  rite_pair a b h := by rfl
+  ident_lid x := by
+    have h := C.ident_lid
+    simp
+
+def mostest {C : Cat} (x y : C.C0) : ℕ := Fintype.card (hom C x y)
+
+def CattoCat' (C : Cat) : Cat' I C.C0 p where
+  ident
+
+-/
+
+structure FinsC1 where
+  m : ℕ
+  n : ℕ
+  f : Fin m → Fin n
+  h : ∀ x h, ∃ g, f ⟨x,h⟩ = ⟨x,g⟩
+
+structure FinsC2 where
+  l : FinsC1
+  r : FinsC1
+  h : l.m = r.n
+
+@[simp]
+def Fins : Cat where
+  C0 := ℕ
+  C1 := FinsC1
+  C2 := FinsC2
+  dom x := x.m
+  cod x := x.n
+  ident x := ⟨x, x, id, by simp⟩
+  ident_dom := by intros ; rfl
+  ident_cod := by intros ; rfl
+  left p := p.l
+  rite p := p.r
+  comp p := {
+    m := p.r.m,
+    n := p.l.n,
+    f := fun ⟨x,hx⟩ ↦ {
+      val := x
+      isLt := by
+        rcases p with ⟨⟨plm,pln,plf,plh⟩,⟨prm,prn,prf,prh⟩,ph⟩
+        simp!
+        simp! at ph
+        rcases prh x hx with ⟨h0,hr⟩
+        rw [←ph] at h0
+        rcases plh x h0 with ⟨h1,hl⟩
+        exact h1
+    },
+    h := by
+      intro x h
+      rcases p with ⟨⟨plm,pln,plf,plh⟩,⟨prm,prn,prf,prh⟩,ph⟩
+      simp!
+      simp! at ph
+      rcases prh x h with ⟨h0,_⟩
+      rw [←ph] at h0
+      rcases plh x h0 with ⟨h1,_⟩
+      exact h1
+    }
+  pair l r h := {
+    l := {
+      m := l.m
+      n := l.n
+      f | ⟨x,hx⟩ => {
+          val := x,
+          isLt := by
+            rcases l with ⟨lm,ln,lf,lh⟩
+            simp!
+            rcases lh x hx with ⟨h0,_⟩
+            exact h0
+        }
+      h := by
+        intro x hx
+        rw [h] at hx
+        rcases l with ⟨lm,ln,lf,lh⟩
+        simp!
+        rcases lh x hx with ⟨h0,_⟩
+        exact h0
+    }
+    r := {
+      m := r.m
+      n := r.n
+      f | ⟨x,hx⟩ => {
+          val := x,
+          isLt := by
+            rcases r with ⟨rm,rn,rf,rh⟩
+            simp!
+            rcases rh x hx with ⟨h0,_⟩
+            exact h0
+        }
+      h := by
+        rcases r with ⟨rm,rn,rf,rh⟩
+        simp!
+        intro x hx
+        rcases rh x hx with ⟨h0,_⟩
+        exact h0
+    }
+    h := h
+  }
+  C2_ok p := by exact p.h
+  dom_comp := by intros ; rfl
+  cod_comp := by intros ; rfl
+  left_pair
+  | ⟨am,an,af,ah⟩, ⟨bm,bn,bf,bh⟩, h => by
+    simp!
+    apply funext
+    intro ⟨x,hx⟩
+    rcases ah x hx with ⟨_,h0⟩
+    rw [h0]
+  rite_pair
+  | ⟨am,an,af,ah⟩, ⟨bm,bn,bf,bh⟩, h => by
+    simp!
+    apply funext
+    intro ⟨x,hx⟩
+    rcases bh x hx with ⟨_,h0⟩
+    rw [h0]
+  ident_lid
+    | ⟨m,n,f,h⟩ => by
+      simp!
+      apply funext
+      intro ⟨x,hx⟩
+      rcases h x hx with ⟨_,h0⟩
+      rw [h0]
+  ident_rid
+    | ⟨m,n,f,h⟩ => by
+      simp!
+      apply funext
+      intro ⟨x,hx⟩
+      rcases h x hx with ⟨_,h0⟩
+      rw [h0]
+
+lemma Fins_iso_Nat : isom Fins NatPoset := isoisisom {
+  F := {
+    F0 := id
+    F1 | ⟨m,n,f,h⟩ => {
+      m := m
+      n := n
+      h := by
+        cases m
+        case zero => simp
+        case succ m =>
+          cases n
+          case zero =>
+            specialize h 0
+            simp! at h
+          case succ n =>
+            rcases h m (Nat.lt_succ_iff.2 (by rfl)) with ⟨h0,_⟩
+            apply Nat.succ_le_of_lt
+            exact h0
+    }
+    hdom := by simp
+    hcod := by simp
+  }
+  G := {
+    F0 := id
+    F1 | ⟨m,n,h⟩ => {
+      m := m
+      n := n
+      f | ⟨x,hx⟩ => {
+        val := x
+        isLt := Nat.lt_of_lt_of_le hx h
+      }
+      h := by
+        intro x hx
+        simp!
+        apply Nat.lt_of_lt_of_le hx h
+    }
+    hdom := by simp
+    hcod := by simp
+  }
+  hc0 := by simp
+  hd0 := by simp
+  hc1 := by
+    intro ⟨m,n,f,h⟩
+    simp!
+    apply funext
+    intro ⟨x,hx⟩
+    rcases h x hx with ⟨_,h0⟩
+    rw [h0]
+  hd1 := by simp
+}
