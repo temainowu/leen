@@ -1,5 +1,7 @@
 import Mathlib
 
+set_option linter.unusedVariables false
+
 theorem decide_true' {α p} [inst : Decidable p] : p → ∀ t e : α, (if p then t else e) = t := by
   intro h t e
   cases inst
@@ -40,8 +42,17 @@ lemma decite {α p} [inst : Decidable p] (f : α → Prop) :
     rw [dite]
     exact ht
 
-lemma id_comp {α β} {f : α → β} {b : β → β} : b = id → (fun a ↦ b a) ∘ f = f := by
-  intro h ; rw [h] ; rfl
+lemma id_comp {α β} {f : α → β} {b : β → β} {h : b = id} : (fun a ↦ b a) ∘ f = f := by
+  rw [h] ; rfl
+
+lemma length_congr {α} {a b : List α} : a = b → a.length = b.length := by
+  intro h ; rw [h]
+
+lemma imp_trans {a b c : Prop} : (a → b) → (b → c) → (a → c) := by
+  intro p q A
+  specialize p A
+  specialize q p
+  exact q
 
 @[simp]
 theorem List.length_zipWithAll.{u_1, u_2, u_3} {α : Type u_1} {β : Type u_2} {γ : Type u_3}
@@ -96,7 +107,7 @@ def ro {α β γ} (f : Option α → Option β → γ) : Option α → Option β
   | x, y => some (f x y)
 
 lemma ro_comm {α β} {f : Option α → Option α → β} {x y} (comm : ∀ a b, f a b = f b a) :
-ro f x y = ro f y x := by
+  ro f x y = ro f y x := by
   cases x
   case none =>
     cases y
@@ -653,10 +664,6 @@ decreasing_by
   · apply add_dec_aux x0
   apply le_of_lt
   apply add_dec_aux y0
-
-#eval! add ⟨0,[1,0,1]⟩ ⟨0,[2,0,-1,1]⟩
-
-#eval! add ⟨-2,[1,0,0,-1]⟩ ⟨-2,[2,0,0,1]⟩
 
 lemma fluxh_recurse (r : ℤ) (x : ℚ) (xs : List ℚ) : xs ≠ [] → fluxh r (x :: xs) →
   fluxh (r - ↑(rlzCount xs).succ) (remLeadZero xs) := by
@@ -1227,24 +1234,16 @@ def mul : RankList → RankList → RankList
   | ⟨_,_⟩, ⟨_,[]⟩ => ⟨0,[]⟩
   | ⟨xr,xs⟩, ⟨yr,ys⟩ => ⟨xr + yr, mulv xs ys⟩
 
-#eval mul ⟨0,[1,2,3,4]⟩ ⟨2,[1,-2,3]⟩
-
-#eval mul ⟨0,[1,-1,1]⟩ ⟨0,[1,1,1]⟩
-
-#eval mul ⟨0,[1,1,1]⟩ ⟨2,[1,1,1]⟩
-
-#eval mul ⟨0,[]⟩ ⟨0,[1,1,1,1]⟩
-#eval mul ⟨0,[1]⟩ ⟨0,[1,1,1,1]⟩
-#eval mul ⟨0,[1,1]⟩ ⟨0,[1,1,1,1]⟩
-#eval mul ⟨0,[1,1,1]⟩ ⟨0,[1,1,1,1]⟩
-
 instance : Zero RankList where
   zero := ⟨0,[]⟩
+
+@[simp]
+lemma zero_def : (0 : RankList) = ⟨0, []⟩ := by rfl
 
 instance : One RankList where
   one := ⟨0,[1]⟩
 
-instance {n} : OfNat RankList n where
+instance {n} {_ : n ≠ 0} : OfNat RankList n where
   ofNat := ⟨0,[n]⟩
 
 instance : Add RankList where
@@ -1253,9 +1252,18 @@ instance : Add RankList where
 instance : Mul RankList where
   mul := mul
 
-#eval (⟨3,[1,2,1]⟩ * (⟨0,[2,1,1]⟩ + ⟨-1,[1,3]⟩) : RankList)
+@[simp]
+lemma mul_zero {x y} : RankList.mul x ⟨y,[]⟩ = 0 := by
+  rcases x with ⟨r,xs⟩
+  cases xs
+  case nil => simp!
+  case cons x xs => simp!
 
-#eval ((⟨3,[1,2,1]⟩ * ⟨0,[2,1,1]⟩ + ⟨3,[1,2,1]⟩ * ⟨-1,[1,3]⟩) : RankList)
+@[simp]
+lemma one_def : (1 : RankList) = ⟨0,[1]⟩ := by rfl
+
+@[simp]
+lemma mul_def : ∀ x y : RankList, x * y = RankList.mul x y := by intros ; rfl
 
 lemma length_mulv {xs ys} : xs ≠ [] → ys ≠ [] →
   (mulv xs ys).length = xs.length + ys.length - 1 := by
@@ -2161,7 +2169,6 @@ decreasing_by
   apply le_trans (length_rlz (a :: as))
   rfl
 
-/-
 lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} : (mul ⟨xr,xs⟩ ⟨yr,ys⟩).v = [] ↔ (xs = [] ∨ ys = []) := by
   constructor
   · intro h
@@ -2173,15 +2180,22 @@ lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} : (mul ⟨xr,xs⟩ ⟨yr,ys�
       case nil => simp at h
       case cons y ys =>
         cases xs
-        case nil => simp
+        case nil =>
+          simp!
+          rw [mulv_singleton]
+          simp
         case cons x' xs =>
-          cases @or_not (x' = 0)
-          case inl hx =>
-            rw [hx]
-            simp
-            rw [v_add_eq_addv]
--/
+          simp! [mulv]
+  intro h
+  cases h
+  case inl h =>
+    rw [h]
+    simp!
+  case inr h =>
+    rw [h]
+    simp!
 
+/-
 lemma r_add_le_max {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : fluxh yr ys) :
   (x0 : xs ≠ []) → (y0 : ys ≠ []) → (add ⟨xr,xs⟩ ⟨yr,ys⟩).r ≠ 0 → (add ⟨xr,xs⟩ ⟨yr,ys⟩).r ≤ max xr yr := by
   rw [r_add_eq_addr]
@@ -2265,7 +2279,6 @@ lemma r_add_le_max {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : flu
       ·
       rw [decide_false' h]
       simp! at xh
-
 
 lemma r_add_eq_max_of_heads_not_inv {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : fluxh yr ys) :
   (x0 : xs ≠ []) → (y0 : ys ≠ []) →
@@ -2517,6 +2530,7 @@ lemma r_add_eq_max_of_heads_not_inv {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh
 lemma mul_r {xr yr : ℤ} {xs ys : List ℚ} :
   xs ≠ [] → ys ≠ [] → (mul ⟨xr,xs⟩ ⟨yr,ys⟩).r = xr + yr := by
   cases xs <;> cases ys <;> simp_all [mul]
+-/
 
 end RankList
 
@@ -3358,6 +3372,40 @@ lemma mul_comm' (x y : RankList) (xh : fluxh x.r x.v) (yh : fluxh y.r y.v) :
               simp
             case cons y'' ys =>
               simp!
+
+theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.length = 1 := by
+  rcases x with ⟨xr,xs⟩
+  cases xs
+  case nil => simp!
+  case cons x xs =>
+    constructor
+    · intro h
+      rcases h with ⟨⟨yr,ys⟩,h⟩
+      cases xs
+      case nil => simp!
+      case cons x' xs =>
+        cases ys
+        case nil => simp! at h
+        case cons y ys =>
+          simp! at h
+          have h0 := (@length_congr ℚ (mulv (x :: x' :: xs) (y :: ys)) [1])
+          contrapose! h0
+          constructor
+          · exact h.2
+          rw [length_mulv]
+          · simp!
+            ring_nf
+            rw [add_comm 2, add_assoc, add_comm 2, ←add_assoc]
+            apply Nat.succ_succ_ne_one
+          · simp
+          simp
+    intro h
+    use ⟨-xr,[1 / x]⟩
+    cases xs
+    case cons x' xs => simp! at h
+    case nil =>
+      simp! [mulv]
+      rw [mul_inv_cancel x]
 
 instance : CommRing Fluxion where
   zero_add a := by
