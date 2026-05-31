@@ -1,5 +1,32 @@
 import Mathlib
 
+lemma decite {α p} [inst : Decidable p] (f : α → Prop) :
+  ∀ (t : p → α) (e : ¬p → α),
+    ((∀ (x : p), f (t x)) ∧ (∀ (y : ¬p), f (e y))) ↔ f (if h0 : p then t h0 else e h0) := by
+  intro t e
+  constructor
+  · intro h
+    rcases h with ⟨ht,he⟩
+    cases inst
+    case isFalse h =>
+      specialize he h
+      rw [dite]
+      exact he
+    case isTrue h =>
+      specialize ht h
+      rw [dite]
+      exact ht
+  intro h
+  constructor
+  · intro x
+    cases inst
+    case isFalse => contradiction
+    case isTrue => exact h
+  intro h
+  cases inst
+  case isFalse => exact h
+  case isTrue => contradiction
+
 instance : Dist ℝ where
   dist x y := |x - y|
 
@@ -132,3 +159,54 @@ example : (∃ f : ℤ → ℕ, (∀ x y : ℤ, (f x * f y) = f (x * y))
       intro f h0 m n h1 h2
 
 -- example {N : Type u} {X Y : Type v} : (∃ (g : N → X ⊕ Y), True) → (∃ (K : Type n) (J : Type m) (C : Type z) (f : C × (K → X) × (J → Y)), m + n = u) := by sorry
+
+
+def f (p : Prop) : Set Prop := { x | p → x}
+
+lemma f_lem {p q : Prop} : (f p) ⊇ (f q) ↔ p → q := by
+  rw [f, f]
+  simp!
+  constructor
+  · intro h hp
+    specialize h q
+    apply h
+    · simp
+    exact hp
+  intro hpq a ha hp
+  apply ha
+  apply hpq
+  exact hp
+
+structure SemiDivisionRing α extends Ring α where
+  division := ∀ x : α, (∀ y : α, y ≠ 0 → y * x ≠ 0) ↔ (∃ v : α, v * x = 1)
+
+lemma some_rings_arent_sdrings : ∃ (α : Type) (i : Ring α), ¬(∀ x : α, (∀ y : α, y ≠ 0 → y * x ≠ 0) ↔ (∃ v : α, v * x = 1)) := by
+  use ℤ
+  use Int.instRing
+  simp!
+  use 2
+  simp!
+  intro x
+  cases x
+  case ofNat x =>
+    intro h
+    apply Int.ofNat_inj.1 at h
+    cases x
+    case zero => simp at h
+    case succ x => simp at h
+  case negSucc x =>
+    intro h
+    rw [(by rfl : (2 : ℤ) = ↑(2 : ℕ)),
+        Int.negSucc_mul_ofNat,] at h
+    contrapose! h
+    simp
+    induction x
+    case zero => simp
+    case succ x ih =>
+      simp!
+      rw [add_mul, neg_add]
+      contrapose! ih
+      nth_rewrite 2 [←ih]
+      rw [(by rfl : ↑x = Int.ofNat x) , ←(add_zero (-((Int.ofNat x + 1) * 2))), add_left_cancel]
+
+    have h0 := Int.negSucc_eq_neg_ofNat_iff
