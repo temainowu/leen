@@ -57,7 +57,6 @@ lemma ident_lim {α} [Nice α] (x : α) : lim_sum x ident_seq x := by
           Nice.zero_add]
       exact ih
 
--- I imagine I need more assumtions for taylorness
 def taylorness {α} [Nice α] : Prop := ∀ f : α → α, ∃ seq : ℕ → α, ∀ x : α,
   lim_sum x seq (f x)
 
@@ -194,3 +193,17 @@ theorem Bools_have_taylorness : @taylorness Bool NiceBools := by
       specialize ih (by simp)
       rw [sum, false_bool_seq, zero_mul, zero_add]
       exact ih
+
+instance NiceReals : Nice ℝ where
+  zero_mul := Real.instRing.zero_mul
+  one_mul := Real.instRing.one_mul
+  add_zero := Real.instAddCommGroup.add_zero
+  zero_add := Real.instAddCommGroup.zero_add
+  pow := (· ^ ·)
+  pow_zero := by simp
+  pow_succ := pow_succ
+  dist_self := by simp
+  dist_ne := by simp
+
+theorem Reals_have_taylorness : @taylorness ℝ NiceReals := by
+  intro f
