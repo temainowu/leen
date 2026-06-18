@@ -1,13 +1,6 @@
-# maths
+# Fluxions
 
-## GitHub configuration
+Main thing. everything in the *old* folder is wrong and bad and might should be deleten.
+Representation of a subring of the hyperreals.
 
-To set up your new GitHub repository, follow these steps:
-
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
-
-After following the steps above, you can remove this section from the README file.
+⟨r, \[a,b,c,d,...\]⟩ is a representation for (ωʳ × (a + bε + cε² + dε³ + ...))
