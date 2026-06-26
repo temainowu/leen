@@ -42,7 +42,7 @@ lemma decite {α p} [inst : Decidable p] (f : α → Prop) :
     rw [dite]
     exact ht
 
-lemma id_comp {α β} {f : α → β} {b : β → β} {h : b = id} : (fun a ↦ b a) ∘ f = f := by
+lemma id_comp {α β} {f : α → β} {b : β → β} (h : b = id) : (fun a ↦ b a) ∘ f = f := by
   rw [h] ; rfl
 
 lemma length_congr {α} {a b : List α} : a = b → a.length = b.length := by
@@ -1545,20 +1545,226 @@ lemma getLast?_mul : ∀ x y : List ℚ,
       · simp
       simp
 
-lemma mulv_assoc {xs ys zs} : mulv (mulv xs ys) zs = mulv xs (mulv ys zs) := by
-  cases xs
-  case nil => simp!
-  case cons x xs =>
+def f' : ℚ → ℚ → List ℚ → List ℚ → List ℚ → List ℚ
+  | x, z, ys, zs, [] => mulv (List.map (fun x_1 ↦ x * x_1) ys) (z :: zs)
+  | _, _, _, _, qs => qs
+
+lemma aux' (x y z xs ys zs) :
+  (mulv (List.zipWithAll odd (List.map (fun x_1 ↦ x * x_1) ys) (mulv xs (y :: ys))) (z :: zs)) =
+  f' x z ys zs (mulv (mulv xs (y :: ys)) (z :: zs)) := by
+    cases xs
+    case nil =>
+      simp
+      rw [f', id_comp (by rfl)]
+    case cons x' xs =>
+      rw [f']
+      ·
+
+lemma aux (x y z xs ys zs) (f : ℚ → List ℚ → List ℚ)
+  (h : ∀ q, f q [] = mulv (List.map (fun x_1 ↦ q * x_1) ys) (z :: zs))
+  :
+  (mulv (List.zipWithAll odd (List.map (fun x_1 ↦ x * x_1) ys) (mulv xs (y :: ys))) (z :: zs)) =
+  f x (mulv (mulv xs (y :: ys)) (z :: zs)) := by
+  induction xs generalizing x
+  case nil =>
+    simp!
+    rw [id_comp (by rfl), h]
+  case cons x' xs ih =>
+    rw [mulv, mulv, ih]
+    cases xs
+    case nil =>
+      simp!
+      rw [h, id_comp (by rfl)]
+      simp! at ih
+      cases ys
+      case nil =>
+        simp!
+        rw [id_comp (by rfl), mulv]
+        simp!
+        rw [id_comp (by rfl)]
+
+lemma mvasc_aux {x z ys} :
+  mulv (List.map (fun x_1 ↦ x * x_1) ys) [z] =
+  List.map (fun x_1 ↦ x * x_1) (mulv ys [z]) := by
+  induction ys
+  case nil => simp
+  case cons y' ys ih =>
+    simp!
+    rw [mulv, mulv]
+    simp!
+    constructor
+    · apply mul_assoc
+    exact ih
+
+lemma mulv_mul_assoc_left (x) (ys zs) :
+  mulv (List.map (fun y ↦ x * y) ys) zs =
+  List.map (fun yz ↦ x * yz) (mulv ys zs) := by
     cases ys
-    case nil => simp!
+    case nil => simp
     case cons y ys =>
       cases zs
-      case nil => simp!
+      case nil => simp
+      case cons z zs =>
+        simp!
+        rw [mulv, mulv]
+        congr 1
+        · simp!
+          apply mul_assoc
+        rw [List.map_zipWithAll,
+            List.zipWithAll_map_left,
+            List.zipWithAll_map_left,
+            mulv_mul_assoc_left,
+            List.zipWithAll_map_right]
+        congr
+        funext a b
+        cases a
+        case none =>
+          cases b
+          case none => simp
+          case some b => simp
+        case some a =>
+          cases b
+          case none => simp! ; apply mul_assoc
+          case some b => simp! ; rw [mul_add, mul_assoc]
+termination_by ys.length
+
+lemma map_mul_odd {x : ℚ} : ∀ a b : Option ℚ,
+  (x * ·) (odd a b) =
+  odd (Option.map (x * ·) a) (Option.map (x * ·) b) := by
+  intro a b
+  cases a
+  case none =>
+    cases b
+    case none => simp
+    case some b => simp
+  case some a =>
+    cases b
+    case none => simp
+    case some b => simp! ; rw [mul_add]
+
+lemma distrib_zipWithAll {α} (f : α → α) (g : Option α → Option α → α)
+  (h : ∀ a b : Option α, f (g a b) = g (Option.map f a) (Option.map f b)) (xs ys : List α) :
+  List.map f (List.zipWithAll g xs ys) =
+  List.zipWithAll g (List.map f xs) (List.map f ys) := by
+    cases xs
+    case nil =>
+      simp!
+      intro a ha
+      rw [h]
+      congr
+    case cons x xs =>
+      cases ys
+      case nil =>
+        simp!
+        constructor
+        · rw [h]
+          rfl
+        intro a ha
+        rw [h]
+        rfl
+      case cons y ys =>
+        rw [List.zipWithAll_cons_cons,
+            List.map_cons, h,
+            List.map_cons, List.map_cons,
+            List.zipWithAll_cons_cons]
+        congr
+        apply distrib_zipWithAll
+        exact h
+
+lemma mulv_assoc {xs ys zs} : mulv (mulv xs ys) zs = mulv xs (mulv ys zs) := by
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      cases zs
+      case nil => simp
       case cons z zs =>
         rw [mulv, mulv, mulv, mulv, mul_assoc]
         congr 1
-        grind
-        rw [List.map_zipWithAll]
+        induction xs generalizing x y ys z zs
+        case nil =>
+          cases zs
+          case nil =>
+            simp!
+            rw [id_comp (by rfl)]
+            apply mvasc_aux
+          case cons z' zs =>
+            simp!
+            rw [id_comp (by rfl)]
+            cases ys
+            case nil =>
+              simp!
+              constructor
+              · apply mul_assoc
+              intro a ha
+              apply mul_assoc
+            case cons y' ys =>
+              simp!
+              rw [mulv, mulv,
+                  List.map_cons,
+                  List.map_cons,
+                  List.zipWithAll_cons_cons,
+                  List.zipWithAll_cons_cons,
+                  List.map_cons]
+              congr 1
+              · rw [odd, odd, mul_add, mul_assoc, mul_assoc]
+              rw [←List.map_cons,
+                  ←List.map_cons,
+                  mulv_mul_assoc_left,
+                  distrib_zipWithAll _ odd map_mul_odd,
+                  List.map_map,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_right
+                  ]
+              simp!
+              congr
+              rw [distrib_zipWithAll,
+                  List.zipWithAll_map]
+              · congr
+                funext a b
+                cases a
+                case none => simp
+                case some a =>
+                  cases b <;> simp_all! <;> nth_rewrite 2 [mul_comm] <;> rw [mul_assoc]
+              intro a b
+              cases a
+              case none =>
+                cases b
+                case none => simp
+                case some b => simp
+              case some a =>
+                cases b <;> simp_all! <;> rw [←mul_assoc] <;> nth_rewrite 2 [mul_comm] <;> rw [mul_assoc]
+                rw [mul_add, ←mul_assoc, mul_comm]
+        case cons x' xs ih =>
+          cases ys
+          case nil =>
+            simp!
+            cases zs
+            case nil =>
+              simp!
+              rw [mulv_assoc]
+              congr
+              rw [mulv, mulv]
+              congr
+            case cons z' zs =>
+              simp!
+              rw [id_comp, id_comp,
+                  mulv, mulv, mulv]
+              simp!
+
+
+
+        rw [List.map_zipWithAll,
+            List.zipWithAll_map_left,
+            List.zipWithAll_map_left,
+            List.zipWithAll_map_left,
+            List.zipWithAll_map_left]
+        simp!
         rw [←@mulv_cons_cons x xs (y * z)]
 
 lemma r_add_eq_addr_aux : ∀ r x y, (add_aux r x y).r = add_auxr r x y := by

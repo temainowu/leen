@@ -11,7 +11,6 @@ def div : List ℚ → List ℚ → Option (List ℚ)
 def gcd : List ℚ → List ℚ → List ℚ
   | [], [] => []
 
-
 structure 𝔽 where
   n : List ℚ
   d : List ℚ
