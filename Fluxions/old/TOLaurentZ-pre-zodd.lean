@@ -54,66 +54,16 @@ lemma imp_trans {a b c : Prop} : (a → b) → (b → c) → (a → c) := by
   specialize q p
   exact q
 
---- zodd
+@[simp]
+theorem List.length_zipWithAll.{u_1, u_2, u_3} {α : Type u_1} {β : Type u_2} {γ : Type u_3}
+  {f : Option α → Option β → γ} {l₁ : List α} {l₂ : List β} :
+  (List.zipWithAll f l₁ l₂).length = max l₁.length l₂.length := by
+  induction l₁ generalizing l₂ <;> cases l₂ <;> simp_all
 
 @[simp]
-def odd : Option ℚ → Option ℚ → ℚ
-  | none, none => 0
-  | none, some y => y
-  | some x, none => x
-  | some x, some y => x + y
-
-def zodd := List.zipWithAll odd
-
-@[simp]
-lemma zodd_nil_left {xs : List ℚ} : zodd [] xs = xs := by rw [zodd] ; cases xs <;> simp
-
-@[simp]
-lemma zodd_nil_right {xs : List ℚ} : zodd xs [] = xs := by rw [zodd, List.zipWithAll_nil] ; simp
-
-@[simp]
-lemma zodd_cons_cons {x y : ℚ} {xs ys : List ℚ} :
-  zodd (x :: xs) (y :: ys) = (x + y) :: zodd xs ys := by
-  rw [zodd, List.zipWithAll_cons_cons]
-  rfl
-
-lemma zodd_comm {xs ys : List ℚ} : zodd xs ys = zodd ys xs := by
-  cases xs
-  case nil => simp
-  case cons x xs =>
-    cases ys
-    case nil => simp
-    case cons y ys =>
-      rw [zodd_cons_cons, zodd_cons_cons]
-      congr 1
-      · apply add_comm
-      apply zodd_comm
-
-lemma zodd_assoc {xs ys zs : List ℚ}
-  : zodd (zodd xs ys) zs
-  = zodd xs (zodd ys zs) := by
-    induction xs generalizing ys zs
-    case nil => simp
-    case cons x xs ih =>
-      cases ys
-      case nil => simp
-      case cons y ys =>
-        cases zs
-        case nil => simp
-        case cons z zs =>
-          simp!
-          constructor
-          · rw [add_assoc]
-          apply ih
-
-@[simp]
-theorem List.length_zodd {xs : List ℚ} {ys : List ℚ} :
-  (zodd xs ys).length = max xs.length ys.length := by
-  induction xs generalizing ys <;> cases ys <;> simp_all
-
-@[simp]
-lemma getElem_zodd {xs ys : List ℚ} {i : ℕ} {h} :
-  (zodd xs ys)[i]'h = odd xs[i]? ys[i]? := by
+lemma getElem_zipWithAll.{u_1, u_2, u_3} {α : Type u_1} {β : Type u_2} {γ : Type u_3}
+  {f : Option α → Option β → γ} {xs : List α} {ys : List β} {i : ℕ} {h} :
+  (List.zipWithAll f xs ys)[i]'h = f xs[i]? ys[i]? := by
   induction i generalizing xs ys
   case zero =>
     cases xs
@@ -169,8 +119,9 @@ lemma ro_comm {α β} {f : Option α → Option α → β} {x y} (comm : ∀ a b
     case some y => simp! ; apply comm
 
 @[simp]
-lemma getElem?_zodd {xs ys : List ℚ} {i : ℕ} :
-  (zodd xs ys)[i]? = ro odd xs[i]? ys[i]? := by
+lemma getElem?_zipWithAll.{u_1, u_2, u_3} {α : Type u_1} {β : Type u_2} {γ : Type u_3}
+  {f : Option α → Option β → γ} {xs : List α} {ys : List β} {i : ℕ} :
+  (List.zipWithAll f xs ys)[i]? = ro f xs[i]? ys[i]? := by
   induction i generalizing xs ys
   case zero =>
     cases xs
@@ -203,36 +154,6 @@ lemma getElem?_zodd {xs ys : List ℚ} {i : ℕ} :
         simp!
         specialize @ih xs ys
         apply ih
-
-lemma map_mul_odd {x : ℚ} : ∀ a b : Option ℚ,
-  (x * ·) (odd a b) =
-  odd (Option.map (x * ·) a) (Option.map (x * ·) b) := by
-  intro a b
-  cases a
-  case none =>
-    cases b
-    case none => simp
-    case some b => simp
-  case some a =>
-    cases b
-    case none => simp
-    case some b => simp! ; rw [mul_add]
-
-lemma distrib_zodd {f : ℚ → ℚ} {xs ys : List ℚ}
-  (h : ∀ a b : ℚ, f (a + b) = f a + f b)
-  : List.map f (zodd xs ys) = zodd (List.map f xs) (List.map f ys) := by
-  induction xs generalizing ys
-  case nil => simp
-  case cons x xs ih =>
-    cases ys
-    case nil => simp
-    case cons y ys =>
-      simp!
-      constructor
-      · rw [h]
-      apply ih
-
--- end zodd
 
 lemma listext? {α} {xs ys : List α} :
   (xs = ys ↔ ∀ (i : ℕ), xs[i]? = ys[i]?) := by
@@ -1263,6 +1184,13 @@ decreasing_by
   apply le_of_lt
   apply add_dec_aux y0
 
+@[simp]
+def odd : Option ℚ → Option ℚ → ℚ
+  | none, none => 0
+  | none, some y => y
+  | some x, none => x
+  | some x, some y => x + y
+
 lemma odd_comm : ∀ x y, odd x y = odd y x := by
   intro x y ; cases x <;> cases y <;> simp_all! ; apply add_comm
 
@@ -1301,7 +1229,7 @@ def mulv : List ℚ → List ℚ → List ℚ
   | [], _ => []
   | _, [] => []
   | x :: xs, y :: ys =>
-    x * y :: zodd (List.map (x * ·) ys) (mulv xs (y :: ys))
+    x * y :: (List.zipWithAll odd (List.map (x * ·) ys) (mulv xs (y :: ys)))
 termination_by z => z.length
 
 @[simp]
@@ -1315,7 +1243,7 @@ lemma mulv_r_nil {l} : mulv l [] = [] := by
   simp
 
 lemma mulv_cons_cons {x xs y ys} : mulv (x :: xs) (y :: ys) =
-  x * y :: (zodd (List.map (x * ·) ys) (mulv xs (y :: ys))) := by rw [mulv]
+  x * y :: (List.zipWithAll odd (List.map (x * ·) ys) (mulv xs (y :: ys))) := by rw [mulv]
 
 lemma mulv_singleton {x ys} : mulv [x] ys = List.map (x * ·) ys := by
   cases ys
@@ -1418,11 +1346,11 @@ lemma length_mulv_eq {xs ys} : (mulv xs ys).length =
         · simp
         simp
 
-lemma getLast?_zodd : ∀ (x) (xs ys : List ℚ),
+lemma zWA_l_le_r {α} : ∀ (x) (xs ys : List α) (f : Option α → Option α → α),
   (x :: xs).length ≤ ys.length →
-  (zodd (x :: xs) ys).getLast? =
-    some (odd (if (x :: xs).length = ys.length then (x :: xs).getLast? else none) ys.getLast?) := by
-  intro x xs ys h
+  (List.zipWithAll f (x :: xs) ys).getLast? =
+    some (f (if (x :: xs).length = ys.length then (x :: xs).getLast? else none) ys.getLast?) := by
+  intro x xs ys f h
   cases ys
   case nil => contradiction
   case cons y ys =>
@@ -1447,7 +1375,7 @@ lemma getLast?_zodd : ∀ (x) (xs ys : List ℚ),
           exact h0
         rw [List.getLast?_cons_cons,
             List.getLast?_cons_cons,
-            zodd_cons_cons,
+            List.zipWithAll_cons_cons,
             List.getLast?_cons,
             ih,
             Option.getD_some]
@@ -1458,7 +1386,26 @@ lemma getLast?_zodd : ∀ (x) (xs ys : List ℚ),
     case nil =>
       cases ys
       case nil => simp at h1
-      case cons y' ys => simp!
+      case cons y' ys =>
+        rw [List.zipWithAll_cons_cons,
+            List.zipWithAll,
+            List.map_cons,
+            List.getLast?_cons_cons,
+            ←@List.map_cons _ _ (fun b ↦ f none (some b)),
+            List.getLast?_cons_cons]
+        induction ys generalizing y'
+        case nil => simp
+        case cons y'' ys ih =>
+          specialize ih y'' _ _ _
+          · simp
+          · simp
+          · simp
+          rw [List.map_cons,
+              List.map_cons,
+              List.getLast?_cons_cons,
+              ←@List.map_cons _ _ (fun b ↦ f none (some b)),
+              ih,
+              List.getLast?_cons_cons]
     case cons x' xs ih =>
       cases ys
       case nil => simp at h
@@ -1478,7 +1425,7 @@ lemma getLast?_zodd : ∀ (x) (xs ys : List ℚ),
         · simp!
           simp! at h1
           exact h1
-        rw [zodd_cons_cons,
+        rw [List.zipWithAll_cons_cons,
             List.getLast?_cons,
             ih,
             Option.getD_some]
@@ -1489,7 +1436,7 @@ lemma roodd_assoc : ∀ x y z, ro odd x (ro odd y z) = ro odd (ro odd x y) z := 
   intro x y z ; cases x <;> cases y <;> cases z <;> simp_all! ; rw [add_assoc]
 
 lemma mulv_rec_right {x xs y ys} : mulv (x :: xs) (y :: ys) =
-    x * y :: (zodd (List.map (y * ·) xs) (mulv (x :: xs) ys)) := by
+    x * y :: (List.zipWithAll odd (List.map (y * ·) xs) (mulv (x :: xs) ys)) := by
   rw [listext?]
   intro i
   induction i generalizing x xs y ys
@@ -1510,9 +1457,11 @@ lemma mulv_rec_right {x xs y ys} : mulv (x :: xs) (y :: ys) =
         simp!
         rw [ro_comm odd_comm]
         congr
-        rw [←List.getElem?_map,
+        rw [id_comp]
+        · rw [←List.getElem?_map,
               List.map_cons,
               mul_comm]
+        rfl
       case cons y' ys =>
         nth_rewrite 2 [mulv]
         cases i
@@ -1554,14 +1503,17 @@ lemma getLast?_mulv {xs ys} : xs ≠ [] → ys ≠ [] →
               List.getLast?_cons_cons,
               List.getLast?_cons,
               mulv, mulv,
-              zodd_nil_right]
-          rw [←@List.map_cons,
-              List.getLast?_map,
-              oml_some_some,
-              List.getLast?_cons_cons,
-              List.getLast?_cons,
-              Option.map_some,
-              Option.some_inj]
+              List.zipWithAll_nil,
+              List.map_map,
+              id_comp]
+          · rw [←@List.map_cons,
+                List.getLast?_map,
+                oml_some_some,
+                List.getLast?_cons_cons,
+                List.getLast?_cons,
+                Option.map_some,
+                Option.some_inj]
+            rfl
           rfl
       case cons x' xs ih =>
         cases ys
@@ -1576,7 +1528,7 @@ lemma getLast?_mulv {xs ys} : xs ≠ [] → ys ≠ [] →
           rw [mulv,
               List.getLast?_cons,
               List.map_cons,
-              getLast?_zodd]
+              zWA_l_le_r]
           · rw [ih, Option.getD_some,
                 List.getLast?_cons_cons,
                 length_mulv]
@@ -1614,6 +1566,53 @@ lemma getLast?_mul : ∀ x y : List ℚ,
       · simp
       simp
 
+def f' : ℚ → ℚ → List ℚ → List ℚ → List ℚ → List ℚ
+  | x, z, ys, zs, [] => mulv (List.map (fun x_1 ↦ x * x_1) ys) (z :: zs)
+  | _, _, _, _, qs => qs
+
+/-
+lemma aux (x y z xs ys zs) (f : ℚ → List ℚ → List ℚ)
+  (h : ∀ q, f q [] = mulv (List.map (fun x_1 ↦ q * x_1) ys) (z :: zs))
+  :
+  (mulv (List.zipWithAll odd (List.map (fun x_1 ↦ x * x_1) ys) (mulv xs (y :: ys))) (z :: zs)) =
+  f x (mulv (mulv xs (y :: ys)) (z :: zs)) := by
+  induction xs generalizing x
+  case nil =>
+    simp!
+    rw [id_comp (by rfl), h]
+  case cons x' xs ih =>
+    rw [mulv, mulv, ih]
+    cases xs
+    case nil =>
+      simp!
+      rw [h, id_comp (by rfl)]
+      simp! at ih
+      cases ys
+      case nil =>
+        simp!
+        rw [id_comp (by rfl), mulv]
+        simp!
+        rw [id_comp (by rfl)]
+        simp! at h
+        specialize ih x
+        specialize h x
+        rw [h] at ih
+        simp! at ih
+-/
+
+lemma mvasc_aux {x z ys} :
+  mulv (List.map (fun x_1 ↦ x * x_1) ys) [z] =
+  List.map (fun x_1 ↦ x * x_1) (mulv ys [z]) := by
+  induction ys
+  case nil => simp
+  case cons y' ys ih =>
+    simp!
+    rw [mulv, mulv]
+    simp!
+    constructor
+    · apply mul_assoc
+    exact ih
+
 lemma mulv_mul_assoc_left (x) (ys zs) :
   mulv (List.map (fun y ↦ x * y) ys) zs =
   List.map (fun yz ↦ x * yz) (mulv ys zs) := by
@@ -1628,25 +1627,137 @@ lemma mulv_mul_assoc_left (x) (ys zs) :
         congr 1
         · simp!
           apply mul_assoc
-        rw [distrib_zodd (mul_add x),
+        rw [List.map_zipWithAll,
+            List.zipWithAll_map_left,
+            List.zipWithAll_map_left,
             mulv_mul_assoc_left,
-            List.map_map]
+            List.zipWithAll_map_right]
         congr
-        funext a
-        simp!
-        rw [mul_assoc]
+        funext a b
+        cases a
+        case none =>
+          cases b
+          case none => simp
+          case some b => simp
+        case some a =>
+          cases b
+          case none => simp! ; apply mul_assoc
+          case some b => simp! ; rw [mul_add, mul_assoc]
 termination_by ys.length
 
--- (x + y) * zs = x * zs + y * zs
-lemma zodd_mul {x y : ℚ} {zs : List ℚ} :
-  List.map ((x + y) * ·) zs = zodd (List.map (x * ·) zs) (List.map (y * ·) zs) := by
-  cases zs
-  case nil => simp
-  case cons z zs =>
+lemma map_mul_odd {x : ℚ} : ∀ a b : Option ℚ,
+  (x * ·) (odd a b) =
+  odd (Option.map (x * ·) a) (Option.map (x * ·) b) := by
+  intro a b
+  cases a
+  case none =>
+    cases b
+    case none => simp
+    case some b => simp
+  case some a =>
+    cases b
+    case none => simp
+    case some b => simp! ; rw [mul_add]
+
+lemma distrib_zipWithAll {α} {f : α → α} {z : Option α → Option α → α} {xs ys : List α}
+  (h : ∀ a b : Option α, f (z a b) = z (Option.map f a) (Option.map f b))
+  : List.map f (List.zipWithAll z xs ys) = List.zipWithAll z (List.map f xs) (List.map f ys) := by
+  induction xs generalizing ys
+  case nil =>
     simp!
-    constructor
-    · apply add_mul
-    apply zodd_mul
+    intro a ha
+    rw [h]
+    simp
+  case cons x xs ih =>
+    cases ys
+    case nil =>
+      simp!
+      constructor <;> intros <;> rw [h] <;> simp
+    case cons y ys =>
+      rw [List.zipWithAll_cons_cons,
+          List.map_cons]
+      rw [List.map_cons,
+          List.map_cons,
+          List.zipWithAll_cons_cons]
+      congr
+      · rw [h]
+        simp
+      apply ih
+
+#check distrib_zipWithAll map_mul_odd
+
+lemma zod_assoc {α} {f : Option α → Option α → α} {xs ys zs : List α}
+  (f_none : ∀ a, f (some a) none = a)
+  (none_f : ∀ a, f none (some a) = a)
+  (assoc : ∀ x y z, f (f x y) z = f x (f y z))
+  : List.zipWithAll f (List.zipWithAll f xs ys) zs
+  = List.zipWithAll f xs (List.zipWithAll f ys zs) := by
+    induction xs generalizing ys zs
+    case nil =>
+      cases ys
+      case nil =>
+        simp!
+        intro a ha
+        rw [none_f, none_f]
+      case cons y ys =>
+        cases zs
+        case nil =>
+          simp!
+          constructor <;> intros <;> rw [none_f, none_f, f_none]
+        case cons z zs =>
+          simp!
+          constructor
+          · rw [none_f, none_f]
+          rw [List.map_id'' none_f, List.map_id'' none_f]
+    case cons x xs ih =>
+      cases ys
+      case nil =>
+        cases zs
+        case nil =>
+          simp!
+          constructor <;> intros <;> rw [f_none]
+        case cons z zs =>
+          simp!
+          constructor
+          · rw [f_none, none_f]
+          rw [List.map_id'' none_f, List.map_id'' f_none]
+      case cons y ys =>
+        cases zs
+        case nil =>
+          simp!
+          constructor
+          · rw [f_none, f_none]
+          rw [List.map_id'' f_none, List.map_id'' f_none]
+        case cons z zs =>
+          rw [List.zipWithAll_cons_cons,
+              List.zipWithAll_cons_cons,
+              List.zipWithAll_cons_cons,
+              List.zipWithAll_cons_cons]
+          congr 1
+          · rw [assoc]
+          apply ih
+
+#check zod_assoc (by simp) (by simp) odd_assoc
+
+lemma zodd_comm {xs ys : List ℚ} : List.zipWithAll odd xs ys = List.zipWithAll odd ys xs := by
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      simp!
+      constructor
+      · apply add_comm
+      apply zodd_comm
+
+@[simp]
+def zodd := List.zipWithAll odd
+
+lemma zodd_cons_cons {x y : ℚ} {xs ys : List ℚ} :
+  zodd (x :: xs) (y :: ys) = (x + y) :: zodd xs ys := by
+  rw [zodd, List.zipWithAll_cons_cons]
+  rfl
 
 lemma zodd_mulv {xs ys zs : List ℚ} :
   mulv (zodd xs ys) zs = zodd (mulv xs zs) (mulv ys zs) := by
@@ -1663,14 +1774,14 @@ lemma zodd_mulv {xs ys zs : List ℚ} :
             mulv, mulv, mulv,
             zodd_cons_cons]
         congr 1
-        case e_head => apply add_mul
+        case e_head => simp ; rw [add_mul]
         case e_tail =>
-          rw [ih, zodd_assoc]
-          nth_rewrite 3 [←zodd_assoc]
+          rw [ih]
+          simp!
+          rw [zod_assoc (by simp) (by simp) odd_assoc]
+          nth_rewrite 3 [←(zod_assoc (by simp) (by simp) odd_assoc)]
           nth_rewrite 5 [zodd_comm]
-          rw [zodd_assoc]
-          nth_rewrite 2 [←zodd_assoc]
-          rw [←zodd_mul]
+          simp!
 
 lemma mulv_assoc {xs ys zs} : mulv (mulv xs ys) zs = mulv xs (mulv ys zs) := by
   cases xs
@@ -1683,10 +1794,133 @@ lemma mulv_assoc {xs ys zs} : mulv (mulv xs ys) zs = mulv xs (mulv ys zs) := by
       case nil => simp
       case cons z zs =>
         rw [mulv, mulv, mulv, mulv, mul_assoc,
-            distrib_zodd (mul_add x), zodd_assoc,
-            zodd_mulv, ←mulv, ←mulv_assoc, mulv_mul_assoc_left]
-        congr 2
-        simp
+            distrib_zipWithAll map_mul_odd,
+            zod_assoc (by simp) (by simp) odd_assoc]
+
+/-
+lemma mulv_assoc_aux {x y z x' : ℚ} {ys xs zs : List ℚ} :
+  mulv (List.zipWithAll odd (List.map (fun x_1 ↦ x * x_1) ys) (mulv (x' :: xs) (y :: ys))) (z :: zs) =
+  List.zipWithAll odd (List.map (HMul.hMul x) (mulv ys (z :: zs))) (mulv (mulv (x' :: xs) (y :: ys)) (z :: zs)) := by
+  rw [mulv, mulv]
+  induction xs generalizing x y z x' ys zs
+  case nil =>
+    simp
+    induction ys
+    case nil => simp! ; rw [mulv, mulv] ; simp
+    case cons y' ys ih =>
+      simp!
+      rw [mulv, mulv, mulv, List.map_cons,
+          List.zipWithAll_cons_cons]
+      congr 1
+      · simp!
+        rw [add_mul, mul_assoc]
+      rw [id_comp (by rfl), distrib_zipWithAll map_mul_odd,
+          zod_assoc (by simp) (by simp) odd_assoc]
+
+  case cons y' ys ih =>
+    simp
+    rw [mulv, mulv, List.map_cons,
+        List.zipWithAll_cons_cons]
+    congr 1
+    · simp
+      rw [add_mul,
+          mul_assoc]
+    rw [distrib_zipWithAll map_mul_odd,
+        zod_assoc (by simp) (by simp) odd_assoc]
+
+    rw [ih]
+
+lemma mulv_assoc {xs ys zs} : mulv (mulv xs ys) zs = mulv xs (mulv ys zs) := by
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      cases zs
+      case nil => simp
+      case cons z zs =>
+        rw [mulv, mulv, mulv, mulv, mul_assoc]
+        congr 1
+        induction xs generalizing x y ys z zs
+        case nil =>
+          cases zs
+          case nil =>
+            simp!
+            rw [id_comp (by rfl)]
+            apply mvasc_aux
+          case cons z' zs =>
+            simp!
+            rw [id_comp (by rfl)]
+            cases ys
+            case nil =>
+              simp!
+              constructor
+              · apply mul_assoc
+              intro a ha
+              apply mul_assoc
+            case cons y' ys =>
+              simp!
+              rw [mulv, mulv,
+                  List.map_cons,
+                  List.map_cons,
+                  List.zipWithAll_cons_cons,
+                  List.zipWithAll_cons_cons,
+                  List.map_cons]
+              congr 1
+              · rw [odd, odd, mul_add, mul_assoc, mul_assoc]
+              rw [←List.map_cons,
+                  ←List.map_cons,
+                  mulv_mul_assoc_left,
+                  distrib_zipWithAll map_mul_odd,
+                  List.map_map,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_left,
+                  List.zipWithAll_map_right
+                  ]
+              simp!
+              congr
+              rw [distrib_zipWithAll,
+                  List.zipWithAll_map]
+              · congr
+                funext a b
+                cases a
+                case none => simp
+                case some a =>
+                  cases b <;> simp_all! <;> nth_rewrite 2 [mul_comm] <;> rw [mul_assoc]
+              intro a b
+              cases a
+              case none =>
+                cases b
+                case none => simp
+                case some b => simp
+              case some a =>
+                cases b <;> simp_all! <;> rw [←mul_assoc] <;> nth_rewrite 2 [mul_comm] <;> rw [mul_assoc]
+                rw [mul_add, ←mul_assoc, mul_comm]
+        case cons x' xs ih =>
+          rw [mulv, mulv, ←ih,
+              distrib_zipWithAll map_mul_odd,
+              zod_assoc (by simp) (by simp) odd_assoc]
+          congr 1
+          · simp
+          rw [←mul_assoc, ←mulv, ←mulv, ←mulv, @mulv_comm (x' :: xs)]
+          induction ys
+          case _ =>
+            simp!
+          case _ y' ys ihy =>
+            rw [List.map_cons, mulv, mulv, mulv, List.map_cons,
+                List.zipWithAll_cons_cons, mulv, mulv,
+                List.zipWithAll_cons_cons]
+            congr 1
+            · simp!
+              rw [add_mul, mul_assoc, mul_assoc]
+            simp!
+            rw [distrib_zipWithAll map_mul_odd,
+                zod_assoc (by simp) (by simp) odd_assoc]
+            rw [←mulv]
+-/
 
 lemma r_add_eq_addr_aux : ∀ r x y, (add_aux r x y).r = add_auxr r x y := by
   intro r x ⟨yr,ys⟩
@@ -2296,8 +2530,7 @@ decreasing_by
   apply le_trans (length_rlz (a :: as))
   rfl
 
-lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} :
-  (mul ⟨xr,xs⟩ ⟨yr,ys⟩).v = [] ↔ (xs = [] ∨ ys = []) := by
+lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} : (mul ⟨xr,xs⟩ ⟨yr,ys⟩).v = [] ↔ (xs = [] ∨ ys = []) := by
   constructor
   · intro h
     contrapose! h
@@ -2323,9 +2556,342 @@ lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} :
     rw [h]
     simp!
 
+/-
+lemma r_add_le_max {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : fluxh yr ys) :
+  (x0 : xs ≠ []) → (y0 : ys ≠ []) → (add ⟨xr,xs⟩ ⟨yr,ys⟩).r ≠ 0 → (add ⟨xr,xs⟩ ⟨yr,ys⟩).r ≤ max xr yr := by
+  rw [r_add_eq_addr]
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      intro hx hy add0
+      rw [addr,
+          decite_false hx,
+          decite_false hy]
+      apply decite (· ≤ max xr yr)
+      · intro h0
+        simp!
+      intro h0
+      simp! at h0
+      rw [Int.max_comm, Int.max_def, decide_true' h0]
+      apply decite (· ≤ xr)
+      · intro h1
+        rfl
+      intro h1
+      simp! at h1
+      have h : yr = xr := by apply eq_of_le_of_ge h0 h1
+      apply decite (· ≤ xr)
+      · intro hhead
+        simp! at hhead
+        apply decite (· ≤ xr)
+        · intro xnil
+          apply decite (· ≤ xr)
+          · intro ynil
+            simp! at xnil ynil
+            rw [xnil, ynil, h, addr] at add0
+            simp! at add0
+            apply add0.1 at hhead
+            contradiction
+          intro ynil
+          rw [h]
+          simp!
+          apply Int.zero_le_ofNat
+        intro xnil
+        apply decite (· ≤ xr)
+        · intro ynil
+          simp!
+          apply Int.zero_le_ofNat
+        intro ynil
+        simp!
+        have hrec := r_add_le_max (fluxh_recurse xr x xs xnil xh) (fluxh_recurse yr y ys ynil yh)
+        rw [r_add_eq_addr] at hrec
+        apply le_trans (hrec _ _ _)
+        · rw [h]
+          simp!
+          constructor
+          · apply Int.zero_le_ofNat
+          apply Int.zero_le_ofNat
+        · sorry
+        · sorry
+        sorry
+      intro hhead
+      simp! at hhead
+      apply decite (· ≤ xr)
+      · intro xnil
+        rfl
+      intro xnil
+      apply decite (· ≤ xr)
+      · intro ynil
+        rfl
+      intro ynil
+      rw [add_auxr]
+      unfold fluxh at xh
+      rw [List.head?_cons] at xh
+      have h : x ≠ 0 := by
+        have h := xh.2.1
+        contrapose! h
+        exact Option.some_inj.2 h
+      rw [decite_false,
+          decite_false,
+          decite_true]
+      · sorry
+      ·
+      rw [decide_false' h]
+      simp! at xh
+
+lemma r_add_eq_max_of_heads_not_inv {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : fluxh yr ys) :
+  (x0 : xs ≠ []) → (y0 : ys ≠ []) →
+  xs.head x0 + ys.head y0 ≠ 0 → (add ⟨xr,xs⟩ ⟨yr,ys⟩).r = max xr yr := by
+  rw [r_add_eq_addr]
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      simp!
+      intro h
+      rw [addr,
+          decite_false,
+          decite_false]
+      · apply decite (fun a ↦ a = max xr yr)
+        · intro h0
+          simp!
+          apply le_of_lt h0
+        intro h0
+        simp! at h0
+        rw [Int.max_comm, Int.max_def, decide_true' h0]
+        apply decite (· = xr)
+        · intro h1
+          rfl
+        intro h1
+        apply decite (· = xr)
+        · intro hhead
+          simp! at hhead
+          contradiction
+        · intro hhead
+          simp! at hhead
+          apply decite (· = xr)
+          · intro xnil
+            rfl
+          intro xnil
+          apply decite (· = xr)
+          · intro ynil
+            rfl
+          intro ynil
+          rw [add_auxr]
+          unfold fluxh at xh
+          rw [List.head?_cons] at xh
+          have h : x ≠ 0 := by
+            have h := xh.2.1
+            contrapose! h
+            exact Option.some_inj.2 h
+          rw [decite_false,
+              decite_false,
+              decite_true]
+          · rw [add_r]
+            · sorry
+            · apply fluxh_recurse _ x _ xnil xh
+            · apply fluxh_recurse _ y _ ynil yh
+            · sorry
+            · sorry
+            simp!
+
+          rw [decide_false' h]
+          simp! at xh
+        · simp
+        simp
+
+        /-
+          apply decite (fun a : RankList ↦ a.r = yr)
+          · intro h1
+            cases ys
+            case _ =>
+              rw [decite_true]
+              simp
+            case _ y' ys =>
+              rw [decite_false]
+              simp
+          intro h1
+          rw [decite_false]
+          · rw [decite_false]
+            · cases xs
+              case _ =>
+                rw [decite_true]
+                · cases ys
+                  case _ =>
+                    rw [decite_true]
+                    · simp!
+                      simp! at h1
+                      apply eq_of_le_of_ge h0 h1
+                    simp
+                  case _ y' ys =>
+                    rw [decite_false]
+                    · simp!
+                      simp! at h1
+                      apply eq_of_le_of_ge h0 h1
+                    simp
+                simp
+              case _ x' xs =>
+                rw [decite_false]
+                · cases ys
+                  case _ =>
+                    rw [decite_true]
+                    · simp!
+                      simp! at h1
+                      apply eq_of_le_of_ge h0 h1
+                    simp
+                  case _ y' ys =>
+                    rw [decite_false]
+                    · simp only [List.head_cons,
+                                 List.tail_cons,
+                                 Nat.succ_eq_add_one,
+                                 Nat.cast_add,
+                                 Nat.cast_one]
+                      simp! at h1
+                      have h2 := eq_of_le_of_ge h0 h1
+                      rw [add_aux]
+                      apply decite (fun a : RankList ↦ a.r = yr)
+                      · intro h3
+                        simp!
+                        exact h2
+                      intro h3
+                      rw [decite_false]
+                      · rw [decite_true]
+                        · simp!
+                          exact h2
+                        cases @or_not (x' = 0 ∨ y' = 0 ∨ x' + y' = 0)
+                        case _ h =>
+                          rw [add_r]
+                          · simp!
+                            constructor
+                            · cases @or_not (x' = 0)
+                              case _ hx =>
+                                rw [decide_true' hx]
+                                apply Int.ofNat_lt_ofNat_of_lt
+                                simp
+                              case _ hx =>
+                                rw [decide_false' hx]
+                                simp
+                            cases @or_not (y' = 0)
+                            case _ hy =>
+                              rw [decide_true' hy, h2]
+                              simp!
+                              apply Int.ofNat_lt_ofNat_of_lt
+                              simp
+                            case _ hx =>
+                              rw [decide_false' hx, h2]
+                              simp
+                          · apply fluxh_recurse _ x _ (by simp) xh
+                          · apply fluxh_recurse _ y _ (by simp) yh
+                          · rw [rlz_ne_nil]
+                            · simp
+                            rcases xh with ⟨hx0,hx1,hx2⟩
+                            rw [List.getLast?_cons_cons] at hx2
+                            exact hx2
+                          · rw [rlz_ne_nil]
+                            · simp
+                            rcases yh with ⟨hy0,hy1,hy2⟩
+                            rw [List.getLast?_cons_cons] at hy2
+                            exact hy2
+                          cases h
+                          case _ h =>
+                            simp! at h3
+                            rw [decide_true' h, decide_true' h] at h3
+                        case _ h =>
+                          simp! at h
+                          rcases h with ⟨hx,hy,hxy⟩
+                          rw [add_r]
+                          · simp
+                            rw [h2,
+                                ←add_zero yr,
+                                Int.sub_eq_add_neg,
+                                add_assoc]
+                            apply Int.add_lt_add_left _ yr
+                            rw [←Int.natCast_one,
+                                ←Int.natCast_add]
+                            apply Int.negSucc_lt_zero
+                          · rw [remLeadZero,
+                                decide_false' hx]
+                            simp
+                          · rw [remLeadZero,
+                                decide_false' hy]
+                            simp
+                          contrapose! hxy
+                          rw [←hxy]
+                          congr
+                          · rw [List.head_of_head?_eq_some]
+                            rw [remLeadZero,
+                                decide_false' hx]
+                            simp
+                          rw [List.head_of_head?_eq_some]
+                          rw [remLeadZero,
+                              decide_false' hy]
+                          simp
+                      simp
+                      cases @or_not (x' = 0 ∨ y' = 0 ∨ x' + y' = 0)
+                      case _ h => sorry
+                      case _ h =>
+                        simp! at h
+                        rcases h with ⟨hx,hy,hxy⟩
+                        rw [add_r]
+                        · simp
+                          constructor
+                          · rw [←Int.natCast_one,
+                                ←Int.natCast_add]
+                            apply Int.zero_le_ofNat
+                          rw [h2,
+                              ←add_zero yr,
+                              add_assoc]
+                          apply Int.add_le_add_left
+                          rw [←Int.natCast_one,
+                              ←Int.natCast_add]
+                          apply Int.zero_le_ofNat
+                        · rw [remLeadZero,
+                              decide_false' hx]
+                          simp
+                        · rw [remLeadZero,
+                              decide_false' hy]
+                          simp
+                        contrapose! hxy
+                        rw [←hxy]
+                        congr
+                        · rw [List.head_of_head?_eq_some]
+                          rw [remLeadZero,
+                              decide_false' hx]
+                          simp
+                        rw [List.head_of_head?_eq_some]
+                        rw [remLeadZero,
+                            decide_false' hy]
+                        simp
+                    simp
+                simp
+            simp!
+            exact h
+          simp!
+          exact h0
+        intro h0
+        simp! at h0
+        rw [decite_false]
+        · rw [decite_true h0]
+          cases xs
+          case _ =>
+            rw [decite_true]
+            simp
+          case _ x' xs =>
+            rw [decite_false]
+            simp
+        simp!
+        apply le_of_lt h0
+      · simp
+      simp-/
+
 lemma mul_r {xr yr : ℤ} {xs ys : List ℚ} :
   xs ≠ [] → ys ≠ [] → (mul ⟨xr,xs⟩ ⟨yr,ys⟩).r = xr + yr := by
   cases xs <;> cases ys <;> simp_all [mul]
+-/
 
 end RankList
 
@@ -2918,6 +3484,7 @@ theorem mulh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
           rw [List.getLast?_cons,
               List.getLast?_map,
               Option.some_inj,
+              id_comp (by rfl),
               mul_comm,
               Option.getD_map,
               mul_eq_zero,
@@ -2940,7 +3507,8 @@ theorem mulh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
           cases xs
           case nil =>
             simp
-            rw [List.getLast?_cons,
+            rw [id_comp (by rfl),
+                List.getLast?_cons,
                 List.getLast?_map]
             simp
             constructor
@@ -2950,7 +3518,7 @@ theorem mulh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
                 Option.some_inj] at yh
             exact yh.2
           case cons x' xs =>
-            rw [RankList.getLast?_zodd]
+            rw [RankList.zWA_l_le_r]
             · rw [Option.getD_some,
                   RankList.length_mulv]
               · simp!
@@ -3109,6 +3677,7 @@ lemma mul_comm' (x y : RankList) (xh : fluxh x.r x.v) (yh : fluxh y.r y.v) :
   rcases x with ⟨xr,xs⟩
   rcases y with ⟨yr,ys⟩
   rw [RankList.mul.eq_def, RankList.mul.eq_def]
+  simp!
   cases ys
   case nil =>
     cases xs
@@ -3116,21 +3685,63 @@ lemma mul_comm' (x y : RankList) (xh : fluxh x.r x.v) (yh : fluxh y.r y.v) :
     simp!
   case cons y ys =>
     cases xs
-    case nil => simp
+    case nil => simp!
     case cons x xs =>
-      simp!
-      constructor
-      · rw [add_comm]
-      rw [RankList.mulv_comm]
+      cases xs
+      case nil =>
+        cases ys
+        case nil =>
+          simp!
+          rw [add_comm, mul_comm]
+          simp
+        case cons y' ys =>
+          simp!
+          cases @or_not (y' = 0)
+          case inl hy =>
+            rw [decide_true' hy, decide_true' hy]
+            simp at xh
+            rw [hy] at yh
+            simp at yh
+            rw [RankList.add,
+                decite_false,
+                decite_false]
+            · sorry
+            · sorry
+            simp
+          case inr hy =>
+            rw [decide_false' hy]
+            cases ys
+            case nil =>
+              simp!
+              rw [RankList.add,
+                  decite_false,
+                  decite_false,
+                  decite_false,
+                  decite_true,
+                  decite_true]
+              · simp!
+                constructor
+                · apply add_comm
+                constructor
+                · apply mul_comm
+                ring_nf
+                rfl
+              · simp
+              · simp
+              · simp
+              · simp
+              simp
+            case cons y'' ys =>
+              simp!
 
 theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.length = 1 := by
-  rcases x with ⟨⟨xr,xs⟩,hx⟩
+  rcases x with ⟨xr,xs⟩
   cases xs
   case nil => simp!
   case cons x xs =>
     constructor
     · intro h
-      rcases h with ⟨⟨⟨yr,ys⟩,hy⟩,h⟩
+      rcases h with ⟨⟨yr,ys⟩,h⟩
       cases xs
       case nil => simp!
       case cons x' xs =>
@@ -3138,11 +3749,11 @@ theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.
         case nil => simp! at h
         case cons y ys =>
           simp! at h
-          have h0 := (@length_congr ℚ (RankList.mulv (x :: x' :: xs) (y :: ys)) [1])
+          have h0 := (@length_congr ℚ (mulv (x :: x' :: xs) (y :: ys)) [1])
           contrapose! h0
           constructor
           · exact h.2
-          rw [RankList.length_mulv]
+          rw [length_mulv]
           · simp!
             ring_nf
             rw [add_comm 2, add_assoc, add_comm 2, ←add_assoc]
@@ -3150,16 +3761,11 @@ theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.
           · simp
           simp
     intro h
-    use ⟨⟨-xr,[1 / x]⟩, by
-      simp!
-      simp! at hx
-      exact hx.1⟩
+    use ⟨-xr,[1 / x]⟩
     cases xs
     case cons x' xs => simp! at h
     case nil =>
-      simp!
-      rw [RankList.mulv]
-      simp!
+      simp! [mulv]
       rw [mul_inv_cancel x]
 
 instance : CommRing Fluxion where
@@ -3227,24 +3833,7 @@ instance : CommRing Fluxion where
   mul_assoc
     | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by
       simp!
-      cases xs
-      case nil => simp!
-      case cons x xs =>
-        cases ys
-        case nil => simp!
-        case cons y ys =>
-          cases zs
-          case nil => simp!
-          case cons z zs =>
-            simp!
-            rw [RankList.mulv,
-                RankList.mulv]
-            simp!
-            constructor
-            · apply add_assoc
-            rw [←RankList.mulv,
-                RankList.mulv_assoc,
-                ←RankList.mulv]
+      exact mulv_assoc
 
 
 end Fluxion
