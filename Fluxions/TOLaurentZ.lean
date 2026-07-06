@@ -42,18 +42,6 @@ lemma decite {α p} [inst : Decidable p] (f : α → Prop) :
     rw [dite]
     exact ht
 
-lemma id_comp {α β} {f : α → β} {b : β → β} (h : b = id) : (fun a ↦ b a) ∘ f = f := by
-  rw [h] ; rfl
-
-lemma length_congr {α} {a b : List α} : a = b → a.length = b.length := by
-  intro h ; rw [h]
-
-lemma imp_trans {a b c : Prop} : (a → b) → (b → c) → (a → c) := by
-  intro p q A
-  specialize p A
-  specialize q p
-  exact q
-
 --- zodd
 
 @[simp]
@@ -204,7 +192,7 @@ lemma getElem?_zodd {xs ys : List ℚ} {i : ℕ} :
         specialize @ih xs ys
         apply ih
 
-lemma map_mul_odd {x : ℚ} : ∀ a b : Option ℚ,
+lemma mul_odd {x : ℚ} : ∀ a b : Option ℚ,
   (x * ·) (odd a b) =
   odd (Option.map (x * ·) a) (Option.map (x * ·) b) := by
   intro a b
@@ -310,32 +298,6 @@ lemma listext {α} {xs ys : List α} :
           simp! at h
           exact h
 
-lemma intsub_eq_nat_of_lt : ∀ a b : ℤ, a < b → ∃ c, b - a = Int.ofNat (Nat.succ c) := by
-    intro a b h
-    use (b - a - 1).toNat
-    simp!
-    rw [Nat.cast_sub]
-    · simp!
-      exact Int.le_of_lt h
-    unfold Int.toNat
-    have h : ∃ c, b - a = c := by use b - a
-    rcases h with ⟨c,hc⟩
-    rw [hc]
-    cases c
-    case ofNat c =>
-      dsimp
-      cases c
-      · rw [←Int.add_left_inj a] at hc
-        simp! at hc
-        rw [hc] at h
-        simp at h
-      simp
-    case negSucc c =>
-      rw [←Int.add_left_inj a] at hc
-      simp! at hc
-      rw [hc] at h
-      simp at h
-
 lemma getLast?_of_getElem {α : Type} {x : α} {xs : List α} :
   (x :: xs).getLast? = some ((x :: xs)[xs.length]'(by simp)) := by
   induction xs generalizing x
@@ -368,6 +330,16 @@ namespace RankList
 def add_n_zero : ℕ → List ℚ → List ℚ
   | 0, xs => xs
   | Nat.succ n, xs => 0 :: add_n_zero n xs
+
+lemma map_addNZero {f xs n} (h : f 0 = 0) :
+  List.map f (add_n_zero n xs) = add_n_zero n (List.map f xs) := by
+  cases n
+  case zero => simp
+  case succ n =>
+    simp!
+    constructor
+    · apply h
+    apply map_addNZero h
 
 @[simp]
 theorem add_n_zero_getLast? : ∀ n xs, (add_n_zero n xs).getLast?.getD 0 = (xs.getLast?.getD 0) := by
@@ -689,6 +661,52 @@ decreasing_by
     rw [Nat.lt_succ_iff]
     exact length_rlz ys
 
+def h := Int.toNat_eq_max
+
+def add' : RankList → RankList → RankList
+  | ⟨_, []⟩, y => y
+  | x, ⟨_, []⟩ => x
+  | ⟨xr, [x]⟩, ⟨yr, [y]⟩ =>
+    if xr < yr
+    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat [x]⟩
+    else if yr < xr
+         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat [y]⟩
+         else if x + y = 0 then ⟨0, []⟩ else ⟨xr, [x + y]⟩
+  | ⟨xr, [x]⟩, ⟨yr, y :: ys⟩ =>
+    if xr < yr
+    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat
+      (add' ⟨xr, [x]⟩ ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩).v⟩
+    else if yr < xr
+         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat (y :: ys)⟩
+         else if x + y = 0
+              then ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩
+              else ⟨xr, (x + y) :: ys⟩
+  | ⟨xr, x :: xs⟩, ⟨yr, [y]⟩ =>
+    if xr < yr
+    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat (x :: xs)⟩
+    else if yr < xr
+         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat
+          (add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩ ⟨yr, [y]⟩).v⟩
+         else if x + y = 0
+              then ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩
+              else ⟨xr, (x + y) :: xs⟩
+  | ⟨xr, x :: xs⟩, ⟨yr, y :: ys⟩ =>
+    if xr < yr
+    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat
+      (add' ⟨xr, x :: xs⟩ ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩).v⟩
+    else if yr < xr
+         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat
+          (add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩ ⟨yr, y :: ys⟩).v⟩
+         else if x + y = 0
+              then add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩
+                        ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩
+              else add_aux xr (x + y)
+                  (add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩
+                        ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩)
+termination_by x y => x.v.length + y.v.length
+decreasing_by
+  all_goals (simp! ; try apply add_lt_add_of_lt_of_lt) <;> apply Nat.lt_succ_iff.2 (length_rlz _)
+
 def add : RankList → RankList → RankList
   | ⟨xr, xs⟩, ⟨yr, ys⟩ =>
     if x0 : xs = []
@@ -699,14 +717,14 @@ def add : RankList → RankList → RankList
       else
     if rlt : xr < yr
       then if ynil : ys.tail = []
-           then ⟨yr, ys.head y0 :: (add_n_zero (yr - (xr + 1)).toNat xs)⟩
-           else ⟨yr, ys.head y0 ::
+           then ⟨yr, ys.head y0 :: add_n_zero (yr - (xr + 1)).toNat xs⟩
+           else ⟨yr, ys.head y0 :: add_n_zero (yr - (xr + 1)).toNat
             (add ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩).v⟩
       else
     if rgt : yr < xr
       then if xnil : xs.tail = []
-           then ⟨xr, xs.head x0 :: (add_n_zero (xr - (yr + 1)).toNat ys)⟩
-           else ⟨xr, xs.head x0 ::
+           then ⟨xr, xs.head x0 :: add_n_zero (xr - (yr + 1)).toNat ys⟩
+           else ⟨xr, xs.head x0 :: add_n_zero (xr - (yr + 1)).toNat
             (add ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩ ⟨yr, ys⟩).v⟩
       else
     if hhead : xs.head x0 + ys.head y0 = 0
@@ -818,7 +836,7 @@ lemma add_comm' (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh 
                   decite_false,
                   decite_true rlt,
                   decite_false]
-              · congr 3
+              · congr 4
                 apply add_comm'
                 · exact xh
                 apply fluxh_recurse _ y ys ynil yh
@@ -855,7 +873,7 @@ lemma add_comm' (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh 
                     decite_false,
                     decite_true rgt,
                     decite_false]
-                · congr 3
+                · congr 4
                   apply add_comm'
                   · apply fluxh_recurse _ x xs xnil xh
                   exact yh
@@ -1123,25 +1141,6 @@ decreasing_by
   simp! at h
   apply h
 
-lemma neg_rlz : ∀ xs : List ℚ, (RankList.remLeadZero xs) = [] → (- ·) <$> xs = xs := by
-  intro xs h
-  apply RankList.rlz_eq_nil at h
-  induction xs
-  case nil => rfl
-  case cons x xs ih =>
-    simp!
-    have h0 := h 0 (by simp)
-    simp! at h0
-    rw [h0]
-    simp!
-    apply ih
-    intro i hi
-    specialize h i.succ _
-    · simp!
-      exact hi
-    simp! at h
-    exact h
-
 def add_auxv : ℤ → ℚ → RankList → List ℚ
   | r, x, ⟨yr, ys⟩ =>
     if y0 : ys = []
@@ -1223,13 +1222,14 @@ def addv : RankList → RankList → List ℚ
       else
     if rlt : xr < yr
       then if ynil : ys.tail = []
-           then ys.head y0 :: (add_n_zero (yr - (xr + 1)).toNat xs)
-           else ys.head y0 :: (addv ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩)
+           then ys.head y0 :: add_n_zero (yr - (xr + 1)).toNat xs
+           else ys.head y0 :: add_n_zero (yr - (xr + 1)).toNat
+            (addv ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩)
       else
     if rgt : yr < xr
       then if xnil : xs.tail = []
-           then xs.head x0 :: (add_n_zero (xr - (yr + 1)).toNat ys)
-           else xs.head x0 ::
+           then xs.head x0 :: add_n_zero (xr - (yr + 1)).toNat ys
+           else xs.head x0 :: add_n_zero (xr - (yr + 1)).toNat
             (addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩ ⟨yr, ys⟩)
       else
     if hhead : xs.head x0 + ys.head y0 = 0
@@ -1240,7 +1240,7 @@ def addv : RankList → RankList → List ℚ
            else if ynil : ys.tail = []
                 then remLeadZero xs.tail
                 else addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                         ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩
+                          ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩
       else if xnil : xs.tail = []
            then if ynil : ys.tail = []
                 then [xs.head x0 + ys.head y0]
@@ -1485,47 +1485,41 @@ lemma getLast?_zodd : ∀ (x) (xs ys : List ℚ),
         nth_rewrite 2 [List.getLast?_cons_cons]
         rfl
 
-lemma roodd_assoc : ∀ x y z, ro odd x (ro odd y z) = ro odd (ro odd x y) z := by
-  intro x y z ; cases x <;> cases y <;> cases z <;> simp_all! ; rw [add_assoc]
-
 lemma mulv_rec_right {x xs y ys} : mulv (x :: xs) (y :: ys) =
     x * y :: (zodd (List.map (y * ·) xs) (mulv (x :: xs) ys)) := by
   rw [listext?]
   intro i
-  induction i generalizing x xs y ys
+  induction i generalizing x xs
   case zero => simp [mulv]
   case succ i ih =>
-    rw [mulv]
-    simp!
+    rw [mulv,
+        List.getElem?_cons_succ,
+        List.getElem?_cons_succ,
+        getElem?_zodd]
     cases xs
     case nil =>
+      rw [getElem?_zodd]
       simp! [mulv]
       rw [mulv_singleton, ro_comm odd_comm]
       congr
       rw [List.getElem?_map]
     case cons x' xs =>
-      rw [@ih x' xs y ys]
+      rw [@ih x' xs,
+          ←getElem?_zodd]
+      congr 1
+      case e_a =>
       cases ys
       case nil =>
         simp!
-        rw [ro_comm odd_comm]
-        congr
-        rw [←List.getElem?_map,
-              List.map_cons,
-              mul_comm]
+        apply mul_comm
       case cons y' ys =>
-        nth_rewrite 2 [mulv]
-        cases i
-        case zero =>
-          simp!
-          rw [add_comm]
-          congr 1
-          rw [mul_comm]
-        case succ i =>
-          simp!
-          rw [roodd_assoc]
-          nth_rewrite 2 [ro_comm odd_comm]
-          rw [←roodd_assoc]
+        rw [List.map_cons,
+            zodd_cons_cons,
+            ←zodd_assoc]
+        nth_rewrite 2 [zodd_comm, mulv]
+        rw [List.map_cons,
+            zodd_cons_cons,
+            zodd_assoc, add_comm, mul_comm]
 
 lemma mulv_comm {xs ys} : mulv xs ys = mulv ys xs := by
   cases xs
@@ -1636,6 +1630,16 @@ lemma mulv_mul_assoc_left (x) (ys zs) :
         simp!
         rw [mul_assoc]
 termination_by ys.length
+
+-- instance HMul ℚ (List ℚ) (List ℚ) := ⟨fun x ↦ ((x * ·) <$> ·)⟩
+-- instance HAdd ℚ (List ℚ) (List ℚ) := ⟨fun x ↦ ((x + ·) <$> ·)⟩
+-- instance Mul (List ℚ) := ⟨mulv⟩
+-- instance Add (List ℚ) := ⟨zodd⟩
+-- x * (ys * zs) = (x * ys) * zs -- mulv_mul_assoc_left
+-- (x * y) * zs = x * (y * zs)
+-- (x + y) * zs = (x * zs) + (y * zs) -- zodd_mul
+-- x * (ys + zs) = x * ys + x * zs
+-- xs * (ys + zs) = xs * ys + xs * zs -- zodd_mulv
 
 -- (x + y) * zs = x * zs + y * zs
 lemma zodd_mul {x y : ℚ} {zs : List ℚ} :
@@ -2069,6 +2073,17 @@ decreasing_by
     rw [decide_false' h]
     simp
 
+lemma r_add_of_eq_r {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : fluxh yr ys)
+  (h : xr = yr) : (add ⟨xr, xs⟩ ⟨yr, ys⟩).r = xr := by
+  rw [h, add]
+  cases xs
+  case nil => rw [decite_true rfl]
+  case cons x xs =>
+    rw [decite_false (by simp)]
+    cases ys
+    case nil => sorry
+    case cons y ys => sorry
+
 theorem v_add_eq_addv (x y : RankList) : (add x y).v = addv x y := by
   rcases x with ⟨xr,xs⟩
   rcases y with ⟨yr,ys⟩
@@ -2102,6 +2117,7 @@ theorem v_add_eq_addv (x y : RankList) : (add x y).v = addv x y := by
                 decite_true rlt,
                 decite_false]
             · simp!
+              congr
               apply v_add_eq_addv
             simp
           simp
@@ -2128,6 +2144,7 @@ theorem v_add_eq_addv (x y : RankList) : (add x y).v = addv x y := by
                   decite_true rgt,
                   decite_false]
               · simp!
+                congr
                 apply v_add_eq_addv
               simp
             simp
@@ -2296,6 +2313,9 @@ decreasing_by
   apply le_trans (length_rlz (a :: as))
   rfl
 
+lemma add_eq_addr_addv (x y : RankList) : add x y = ⟨addr x y, addv x y⟩
+  := by rw [←r_add_eq_addr, ←v_add_eq_addv]
+
 lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} :
   (mul ⟨xr,xs⟩ ⟨yr,ys⟩).v = [] ↔ (xs = [] ∨ ys = []) := by
   constructor
@@ -2326,6 +2346,14 @@ lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} :
 lemma mul_r {xr yr : ℤ} {xs ys : List ℚ} :
   xs ≠ [] → ys ≠ [] → (mul ⟨xr,xs⟩ ⟨yr,ys⟩).r = xr + yr := by
   cases xs <;> cases ys <;> simp_all [mul]
+
+theorem add_assoc' (xr yr zr : ℤ) (xs ys zs : List ℚ)
+  (xh : fluxh xr xs) (yh : fluxh yr ys) (zh : fluxh zr zs) :
+    add ⟨xr, xs⟩ (add ⟨yr, ys⟩ ⟨zr, zs⟩) = add (add ⟨xr,xs⟩ ⟨yr,ys⟩) ⟨zr,zs⟩ := by
+  unfold fluxh at *
+  cases xs
+  case nil => sorry
+  case cons x xs => sorry
 
 end RankList
 
@@ -3138,17 +3166,12 @@ theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.
         case nil => simp! at h
         case cons y ys =>
           simp! at h
-          have h0 := (@length_congr ℚ (RankList.mulv (x :: x' :: xs) (y :: ys)) [1])
-          contrapose! h0
-          constructor
-          · exact h.2
-          rw [RankList.length_mulv]
-          · simp!
-            ring_nf
-            rw [add_comm 2, add_assoc, add_comm 2, ←add_assoc]
-            apply Nat.succ_succ_ne_one
-          · simp
-          simp
+          have h0 := List.length_eq_of_beq (beq_of_eq h.2)
+          rw [RankList.length_mulv (by simp) (by simp),
+              List.length_cons, List.length_cons, List.length_cons,
+              ←add_assoc, Nat.add_sub_cancel,
+              add_comm, ←add_assoc] at h0
+          simp! at h0
     intro h
     use ⟨⟨-xr,[1 / x]⟩, by
       simp!
@@ -3157,10 +3180,70 @@ theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.
     cases xs
     case cons x' xs => simp! at h
     case nil =>
+      simp! [RankList.mulv]
+      simp! at hx
+      apply Rat.instDivisionRing.12 _ hx
+
+/-
+lemma left_distrib' : ∀ a b c : Fluxion, a * (b + c) = a * b + a * c := by
+  cases xs
+  case nil =>
+    simp!
+    rw [RankList.add]
+    simp
+  case cons x xs =>
+    cases ys
+    case nil =>
       simp!
-      rw [RankList.mulv]
+      rw [RankList.add]
       simp!
-      rw [mul_inv_cancel x]
+      rw [RankList.add]
+      simp
+    case cons y ys =>
+      cases zs
+      case nil =>
+        simp!
+        rw [RankList.add]
+        simp!
+        rw [RankList.add]
+        simp
+        rw [RankList.mulv]
+        simp
+      case cons z zs =>
+        simp!
+        rw [RankList.mul,
+            RankList.v_add_eq_addv,
+            RankList.r_add_eq_addr,
+            RankList.mulv,
+            RankList.mulv,
+            RankList.add,
+            RankList.addr,
+            RankList.addv]
+        · simp!
+          cases @or_not (yr < zr)
+          case inl h =>
+            rw [decide_true' h,
+                decide_true' h,
+                decide_true' h]
+            cases zs
+            case nil =>
+              simp!
+              cases xs
+              case nil =>
+                simp!
+                rw [RankList.mulv,
+                    RankList.mulv,
+                    zodd_nil_right]
+                ring_nf
+                rw [RankList.map_addNZero]
+                · rw [List.map_cons]
+                apply mul_zero
+              case cons x' xs =>
+                rw [decide_false']
+                · sorry
+                rw [RankList.mulv]
+                simp
+-/
 
 instance : CommRing Fluxion where
   zero_add a := by
@@ -3245,6 +3328,72 @@ instance : CommRing Fluxion where
             rw [←RankList.mulv,
                 RankList.mulv_assoc,
                 ←RankList.mulv]
+  add_assoc
+    | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by
+        simp
+        sorry
+  left_distrib
+    | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by sorry
+  right_distrib
+    | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by sorry
+  nsmul_succ
+    | n, ⟨⟨r,xs⟩,⟨h0,h1,h2⟩⟩ => by
+      rw [nsmul, decite_false (by simp)]
+      simp!
+      cases n
+      case zero =>
+        rw [nsmul, decite_true rfl]
+        simp!
+        rw [RankList.add, decite_true rfl]
+      case succ n =>
+        rw [nsmul, decite_false (by simp)]
+        simp!
+        rw [RankList.add_eq_addr_addv]
+        congr
+        case e_r =>
+          rw [RankList.addr]
+          cases xs
+          case nil => rw [decite_true (by simp)]
+          case cons x xs =>
+            rw [decite_false (by simp),
+                decite_false (by simp),
+                decite_false (by simp),
+                decite_false (by simp),
+                decite_false]
+            · cases xs
+              case nil => rw [decite_true (by simp)]
+              case cons x' xs =>
+                rw [decite_false (by simp),
+                    decite_false (by simp),
+                    RankList.add_auxr]
+                simp!
+
+        case e_v =>
+        rw [RankList.add]
+        cases xs
+        case nil =>
+          rw [decite_true (by simp)]
+          simp!
+        case cons x xs =>
+          rw [decite_false (by simp),
+              decite_false (by simp),
+              decite_false (by simp),
+              decite_false (by simp),
+              decite_false]
+          · cases xs
+            case nil =>
+              rw [decite_true (by simp),
+                  decite_true (by simp)]
+              simp!
+              rw [add_mul, one_mul]
+            case cons x' xs =>
+              rw [decite_false (by simp),
+                  decite_false (by simp),
+                  RankList.add_aux]
+
+
+
+
 
 
 end Fluxion
@@ -3413,8 +3562,8 @@ instance [DivisionRing α] : DivisionRing (F α) where
   inv_zero := by
     rw [Zero.toOfNat0]
     simp
-  nnqsmul q f := nsmul q.num (F.instDivisionRing.inv (OfNat.ofNat q.den) * f)
-  qsmul q f := instRing.zsmul q.num (F.instDivisionRing.inv (OfNat.ofNat q.den) * f)
+  nnqsmul q f := nsmul q.num (F.instInv.inv (OfNat.ofNat q.den) * f)
+  qsmul q f := instRing.zsmul q.num (F.instInv.inv (OfNat.ofNat q.den) * f)
   nnqsmul_def q f := by
     apply funext
     intro x
@@ -3429,12 +3578,14 @@ instance [DivisionRing α] : DivisionRing (F α) where
       rfl
     revert x
     rw [←funext_iff]
-    congr
+    sorry
+    /-congr
     · sorry
     nth_rewrite 2 [Nat.cast]
     rw [NatCast.natCast]
     simp
-    rw [ofnatsnd, ofnatþrd]
+    rw [ofnatsnd, ofnatþrd]-/
+  qsmul_def := by sorry
 
 end F
 
@@ -3457,7 +3608,12 @@ def inv (x : Fluxion) {_ : x.f.v.length = 1} : Fluxion :=
 
 def div (x y : Fluxion) {h : y.f.v.length = 1} : Fluxion := x * @inv y h
 
-theorem apply_add {α} [DivisionRing α] : ∀ f g : Fluxion, @apply α _ (f + g).f = apply f.f + apply g.f := by
+theorem apply_add {α} [DivisionRing α] :
+  ∀ f g : Fluxion, @apply α _ (f + g).f = apply f.f + apply g.f := by
   intro f g
   apply funext
   intro x
+  rcases f with ⟨⟨fr,fs⟩,fh⟩
+  rcases g with ⟨⟨gr,gs⟩,gh⟩
+  simp!
+  sorry
