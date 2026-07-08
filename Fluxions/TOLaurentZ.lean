@@ -759,18 +759,6 @@ lemma add_comm' (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh 
       simp!
       rw [zodd_comm, max_comm]
 
-#eval add ⟨2,[1,0,2]⟩ ⟨0,[1,0,3]⟩
-#eval add ⟨2,[1]⟩ ⟨0,[1,2,3]⟩
-#eval add ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,0,1,3,2]⟩
-#eval add ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,1,3,2]⟩
-#eval add ⟨10,[1,0,2,3]⟩ ⟨10,[1,0,0,0,1,3,2]⟩
--- ⟨0, (1 + 1) :: addNZero (min 1 3) (add
--- ⟨-2, [2,3]⟩
--- ⟨-4, [1,3,2]⟩).v⟩
-#eval add ⟨-2, [2,3]⟩ ⟨-4, [1,3,2]⟩
--- ⟨-2, 2 :: addNZero (-2 - (-4 + 1)).toNat
-#eval add ⟨-3, [3]⟩ ⟨-4, [1,3,2]⟩
-
 lemma fluxh_recurse (r : ℤ) (x : ℚ) (xs : List ℚ) : xs ≠ [] → fluxh r (x :: xs) →
   fluxh (r - ↑(rlzCount xs).succ) (remLeadZero xs) := by
   unfold fluxh
@@ -1230,6 +1218,27 @@ lemma mul_r {xr yr : ℤ} {xs ys : List ℚ} :
   xs ≠ [] → ys ≠ [] → (mul ⟨xr,xs⟩ ⟨yr,ys⟩).r = xr + yr := by
   cases xs <;> cases ys <;> simp_all [mul]
 
+theorem add_assoc'
+  (xr yr zr : ℤ) (xs ys zs : List ℚ)
+  (xh : fluxh xr xs)
+  (yh : fluxh yr ys)
+  (zh : fluxh zr zs) :
+  add ⟨xr,xs⟩ (add ⟨yr,ys⟩ ⟨zr,zs⟩) = add (add ⟨xr,xs⟩ ⟨yr,ys⟩) ⟨zr,zs⟩ := by
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      cases zs
+      case nil =>
+        simp!
+        rw [add_comm' _ _ _ _ (normalise_has_fluxh _) zh]
+        simp
+      case cons z zs =>
+        simp!
+        sorry
+
 end RankList
 
 @[reducible]
@@ -1237,7 +1246,7 @@ def bop_pres_fluxh (bop : RankList → RankList → RankList) : Prop :=
   ∀ (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys),
   fluxh (bop ⟨xr,xs⟩ ⟨yr,ys⟩).r (bop ⟨xr,xs⟩ ⟨yr,ys⟩).v
 
-lemma umm?? : bop_pres_fluxh RankList.add := by
+lemma addh : bop_pres_fluxh RankList.add := by
   unfold bop_pres_fluxh fluxh
   intro xr yr xs ys hx hy
   cases xs
@@ -1275,7 +1284,7 @@ lemma one_def : (1 : Fluxion) = ⟨⟨0,[1]⟩, by simp⟩ := by rfl
 def add : Fluxion → Fluxion → Fluxion
   | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩ => {
     f := RankList.add ⟨xr,xs⟩ ⟨yr,ys⟩
-    h := umm?? xr yr xs ys xh yh
+    h := addh xr yr xs ys xh yh
   }
 
 instance : Add Fluxion where
@@ -1392,7 +1401,7 @@ lemma neg_def (x : Fluxion) : - x = ⟨⟨x.f.r, (- ·) <$> x.f.v⟩, by simp! ;
 
 @[simp]
 lemma add_def {x y : Fluxion} :
-  x + y = ⟨RankList.add x.f y.f, umm?? x.f.r y.f.r x.f.v y.f.v x.h y.h⟩ := by rfl
+  x + y = ⟨RankList.add x.f y.f, addh x.f.r y.f.r x.f.v y.f.v x.h y.h⟩ := by rfl
 
 @[simp]
 lemma mul_def {x y : Fluxion} :
@@ -1479,6 +1488,52 @@ lemma mul_comm' (x y : RankList) (xh : fluxh x.r x.v) (yh : fluxh y.r y.v) :
       constructor
       · rw [add_comm]
       rw [RankList.mulv_comm]
+
+/-
+lemma nsmul_succ_aux {n : ℕ} {r x xs} (h : x ≠ 0) :
+  ⟨r, (↑n + 1 + 1) * x :: List.map (fun x ↦ (↑n + 1 + 1) * x) xs⟩ =
+  (⟨r, (RankList.remLeadZero (
+    (zodd (List.map (fun x ↦ (↑n + 1) * x) xs) xs).reverse ++
+      [((↑n : ℚ) + 1) * x + x])).reverse⟩ : RankList) := by
+  congr
+  induction xs
+  case nil =>
+    simp!
+    rw [decide_false']
+    · rw [add_mul, one_mul, List.reverse_singleton]
+    nth_rw 2 [←one_mul x]
+    rw [←add_mul, mul_eq_zero, not_or]
+    constructor
+    · rw [(by simp : 1 = (↑(1 : ℕ) : ℚ)),
+          ←Rat.natCast_add,
+          ←Rat.natCast_add]
+      contrapose! h
+      rw [Rat.natCast_eq_zero_iff] at h
+      simp! at h
+    exact h
+  case cons x' xs ih =>
+    rw [RankList.rlz_append]
+    · rw [List.reverse_append,
+          List.reverse_singleton,
+          List.map_cons,
+          List.singleton_append]
+      simp!
+      rw [add_mul, one_mul]
+      simp!
+
+
+    nth_rw 2 [←one_mul x]
+    rw [←add_mul]
+    apply mul_ne_zero
+    · rw [(by simp : 1 = (↑(1 : ℕ) : ℚ)),
+          ←Rat.natCast_add,
+          ←Rat.natCast_add]
+      contrapose! h
+      rw [Rat.natCast_eq_zero_iff] at h
+      simp! at h
+    exact h
+-/
+
 
 theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.length = 1 := by
   rcases x with ⟨⟨xr,xs⟩,hx⟩
@@ -1599,7 +1654,6 @@ instance : CommRing Fluxion where
     | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by sorry
   right_distrib
     | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by sorry
-  /-
   nsmul_succ
     | n, ⟨⟨r,xs⟩,⟨h0,h1,h2⟩⟩ => by
       rw [nsmul, decite_false (by simp)]
@@ -1617,7 +1671,8 @@ instance : CommRing Fluxion where
           simp!
           simp! at h1
           rw [decide_false']
-          · -/
+          · apply nsmul_succ_aux
+
 
 end Fluxion
 
