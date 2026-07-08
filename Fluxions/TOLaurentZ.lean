@@ -51,6 +51,32 @@ def odd : Option ℚ → Option ℚ → ℚ
   | some x, none => x
   | some x, some y => x + y
 
+lemma odd_comm : ∀ x y, odd x y = odd y x := by
+  intro x y ; cases x <;> cases y <;> simp_all! ; apply add_comm
+
+lemma odd_assoc : ∀ x y z, odd (odd x y) z = odd x (odd y z) := by
+  intro x y z
+  cases x
+  case none =>
+    cases y
+    case none =>
+      cases z
+      case none => simp
+      case some z => simp
+    case some y => simp
+  case some x =>
+    cases y
+    case none =>
+      cases z
+      case none => simp
+      case some z => simp
+    case some y =>
+      cases z
+      case none => simp
+      case some z =>
+        simp!
+        apply add_assoc
+
 def zodd := List.zipWithAll odd
 
 @[simp]
@@ -711,13 +737,13 @@ lemma normalise_has_fluxh (x : RankList) : fluxh (normalise x).r (normalise x).v
 termination_by x.v.length
 
 @[simp]
-def add''' : RankList → RankList → RankList
+def add : RankList → RankList → RankList
   | ⟨_, []⟩, y => y
   | x, ⟨_, []⟩ => x
   | ⟨xr, xs⟩, ⟨yr, ys⟩ => normalise ⟨max xr yr, rankShiftZodd xr yr xs ys⟩
 
-lemma add'''_comm (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys) :
-  add''' ⟨xr, xs⟩ ⟨yr, ys⟩ = add''' ⟨yr, ys⟩ ⟨xr, xs⟩ := by
+lemma add_comm' (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys) :
+  add ⟨xr, xs⟩ ⟨yr, ys⟩ = add ⟨yr, ys⟩ ⟨xr, xs⟩ := by
   unfold fluxh at xh yh
   cases xs
   case nil =>
@@ -733,145 +759,9 @@ lemma add'''_comm (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : flux
       simp!
       rw [zodd_comm, max_comm]
 
-def add'' : RankList → RankList → RankList
-  | ⟨_, []⟩, y => y
-  | x, ⟨_, []⟩ => x
-  | ⟨xr, [x]⟩, ⟨yr, [y]⟩ =>
-    if xr = yr ∧ x + y = 0 then ⟨0, []⟩ else ⟨max xr yr, rankShiftZodd xr yr [x] [y]⟩
-  | ⟨xr, [x]⟩, ⟨yr, y :: ys⟩ =>
-    if xr = yr
-    then if x + y = 0
-         then rlmk yr ys
-         else ⟨xr, (x + y) :: ys⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (xr - (yr + 1)).toNat (y :: ys)⟩
-         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
-                (add'' ⟨xr, [x]⟩ (rlmk yr ys)).v⟩
-  | ⟨xr, x :: xs⟩, ⟨yr, [y]⟩ =>
-    if xr = yr
-    then if x + y = 0
-         then rlmk xr xs
-         else ⟨xr, (x + y) :: xs⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
-                (add'' (rlmk xr xs) ⟨yr, [y]⟩).v⟩
-         else ⟨yr, y :: addNZero (yr - (xr + 1)).toNat (x :: xs)⟩
-  | ⟨xr, x :: xs⟩, ⟨yr, y :: ys⟩ =>
-    if xr = yr
-    then if x + y = 0
-         then add'' (rlmk xr xs) (rlmk yr ys)
-         else ⟨xr, (x + y) :: addNZero (min (rlzCount xs) (rlzCount ys))
-                        (add'' (rlmk xr xs) (rlmk yr ys)).v⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
-                        (add'' (rlmk xr xs) ⟨yr,y :: ys⟩).v⟩
-         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
-                        (add'' ⟨xr,x :: xs⟩ (rlmk yr ys)).v⟩
-termination_by x y => x.v.length + y.v.length
-decreasing_by
-  all_goals (simp! ; try apply add_lt_add_of_lt_of_lt) <;> apply Nat.lt_succ_iff.2 (length_rlz _)
-
-def add' : RankList → RankList → RankList
-  | ⟨_, []⟩, y => y
-  | x, ⟨_, []⟩ => x
-  | ⟨xr, [x]⟩, ⟨yr, [y]⟩ =>
-    if xr = yr
-    then if x + y = 0 then ⟨0, []⟩ else ⟨xr, [x + y]⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (xr - (yr + 1)).toNat [y]⟩
-         else ⟨yr, y :: addNZero (yr - (xr + 1)).toNat [x]⟩
-  | ⟨xr, [x]⟩, ⟨yr, y :: ys⟩ =>
-    if xr = yr
-    then if x + y = 0
-         then rlmk yr ys
-         else ⟨xr, (x + y) :: ys⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (xr - (yr + 1)).toNat (y :: ys)⟩
-         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
-                (add'' ⟨xr, [x]⟩ (rlmk yr ys)).v⟩
-  | ⟨xr, x :: xs⟩, ⟨yr, [y]⟩ =>
-    if xr = yr
-    then if x + y = 0
-         then rlmk xr xs
-         else ⟨xr, (x + y) :: xs⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
-                (add'' (rlmk xr xs) ⟨yr, [y]⟩).v⟩
-         else ⟨yr, y :: addNZero (yr - (xr + 1)).toNat (x :: xs)⟩
-  | ⟨xr, x :: xs⟩, ⟨yr, y :: ys⟩ =>
-    if xr = yr
-    then if x + y = 0
-         then add'' (rlmk xr xs) (rlmk yr ys)
-         else ⟨xr, (x + y) :: addNZero (min (rlzCount xs) (rlzCount ys))
-                        (add'' (rlmk xr xs) (rlmk yr ys)).v⟩
-    else if yr < xr
-         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
-                        (add'' (rlmk xr xs) ⟨yr,y :: ys⟩).v⟩
-         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
-                        (add'' ⟨xr,x :: xs⟩ (rlmk yr ys)).v⟩
-termination_by x y => x.v.length + y.v.length
-decreasing_by
-  all_goals (simp! ; try apply add_lt_add_of_lt_of_lt) <;> apply Nat.lt_succ_iff.2 (length_rlz _)
-
-def add : RankList → RankList → RankList
-  | ⟨xr, xs⟩, ⟨yr, ys⟩ =>
-    if x0 : xs = []
-      then ⟨yr,ys⟩
-      else
-    if y0 : ys = []
-      then ⟨xr,xs⟩
-      else
-    if rlt : xr < yr
-      then if ynil : ys.tail = []
-           then ⟨yr, ys.head y0 :: addNZero (yr - (xr + 1)).toNat xs⟩
-           else ⟨yr, ys.head y0 :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys.tail))
-            (add ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩).v⟩
-      else
-    if rgt : yr < xr
-      then if xnil : xs.tail = []
-           then ⟨xr, xs.head x0 :: addNZero (xr - (yr + 1)).toNat ys⟩
-           else ⟨xr, xs.head x0 :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs.tail))
-            (add ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩ ⟨yr, ys⟩).v⟩
-      else
-    if hhead : xs.head x0 + ys.head y0 = 0
-      then if xnil : xs.tail = []
-           then if ynil : ys.tail = []
-                then ⟨0, []⟩
-                else ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩
-           else if ynil : ys.tail = []
-                then ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                else add ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                         ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩
-      else if xnil : xs.tail = []
-           then if ynil : ys.tail = []
-                then ⟨xr, [xs.head x0 + ys.head y0]⟩
-                else ⟨xr, (xs.head x0 + ys.head y0) :: ys.tail⟩
-           else if ynil : ys.tail = []
-                then ⟨xr, (xs.head x0 + ys.head y0) :: xs.tail⟩
-                else ⟨xr, (xs.head x0 + ys.head y0) ::
-                  addNZero (min (rlzCount xs.tail) (rlzCount ys.tail))
-                  (add ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                       ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩).v⟩
-termination_by x y => x.v.length + y.v.length
-decreasing_by
-  · apply Nat.add_lt_add_of_le_of_lt
-    · rfl
-    apply add_dec_aux y0
-  · apply Nat.add_lt_add_of_lt_of_le
-    · apply add_dec_aux x0
-    rfl
-  · apply Nat.add_lt_add_of_lt_of_le
-    · apply add_dec_aux x0
-    apply le_of_lt
-    apply add_dec_aux y0
-  apply Nat.add_lt_add_of_lt_of_le
-  · apply add_dec_aux x0
-  apply le_of_lt
-  apply add_dec_aux y0
-
 #eval add ⟨2,[1,0,2]⟩ ⟨0,[1,0,3]⟩
 #eval add ⟨2,[1]⟩ ⟨0,[1,2,3]⟩
-#eval add'' ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,0,1,3,2]⟩
+#eval add ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,0,1,3,2]⟩
 #eval add ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,1,3,2]⟩
 #eval add ⟨10,[1,0,2,3]⟩ ⟨10,[1,0,0,0,1,3,2]⟩
 -- ⟨0, (1 + 1) :: addNZero (min 1 3) (add
@@ -905,474 +795,6 @@ lemma fluxh_recurse (r : ℤ) (x : ℚ) (xs : List ℚ) : xs ≠ [] → fluxh r 
     case inr h =>
       rw [h]
       simp
-
-lemma add_comm' (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys) :
-  add ⟨xr,xs⟩ ⟨yr,ys⟩ = add ⟨yr,ys⟩ ⟨xr,xs⟩ := by
-  unfold fluxh at xh yh
-  rw [add]
-  cases xs
-  case nil =>
-    simp!
-    rw [RankList.add]
-    simp!
-    simp! at xh yh
-    intro h
-    have h0 := yh.1 h
-    rw [xh, h0, h]
-    simp
-  case cons x xs =>
-    cases ys
-    case nil =>
-      simp!
-      rw [RankList.add]
-      simp
-    case cons y ys =>
-      rw [decite_false, decite_false]
-      · cases @or_not (xr < yr)
-        case inl rlt =>
-          rw [decite_true rlt]
-          cases @or_not (ys = [])
-          case inl ynil =>
-            rw [decite_true]
-            · rw [add,
-                  decite_false,
-                  decite_false,
-                  decite_false,
-                  decite_true rlt,
-                  decite_true]
-              · simp!
-                exact ynil
-              · simp!
-                apply le_of_lt rlt
-              simp
-            simp!
-            exact ynil
-          case inr ynil =>
-            rw [decite_false]
-            · nth_rewrite 2 [add]
-              rw [decite_false,
-                  decite_false,
-                  decite_false,
-                  decite_true rlt,
-                  decite_false]
-              · congr 4
-                apply add_comm'
-                · exact xh
-                apply fluxh_recurse _ y ys ynil yh
-              · simp!
-                exact ynil
-              · simp!
-                apply le_of_lt rlt
-              · simp
-              simp
-            simp!
-            exact ynil
-        case inr rlt =>
-          rw [decite_false rlt]
-          cases @or_not (yr < xr)
-          case inl rgt =>
-            rw [decite_true rgt]
-            cases @or_not (xs = [])
-            case inl xnil =>
-              rw [decite_true]
-              · rw [add,
-                    decite_false,
-                    decite_false,
-                    decite_true rgt,
-                    decite_true]
-                · simp!
-                  exact xnil
-                simp
-              simp!
-              exact xnil
-            case inr xnil =>
-              rw [decite_false]
-              · nth_rewrite 2 [add]
-                rw [decite_false,
-                    decite_false,
-                    decite_true rgt,
-                    decite_false]
-                · congr 4
-                  apply add_comm'
-                  · apply fluxh_recurse _ x xs xnil xh
-                  exact yh
-                · simp!
-                  exact xnil
-                · simp!
-                simp
-              simp!
-              exact xnil
-          case inr rgt =>
-            rw [decite_false rgt]
-            cases @or_not (x + y = 0)
-            case inl hhead =>
-              rw [decite_true]
-              · cases @or_not (xs = [])
-                case inl xnil =>
-                  rw [decite_true]
-                  · cases @or_not (ys = [])
-                    case inl ynil =>
-                      rw [decite_true]
-                      · rw [add,
-                            decite_false,
-                            decite_false,
-                            decite_false rgt,
-                            decite_false rlt,
-                            decite_true,
-                            decite_true,
-                            decite_true]
-                        · simp!
-                          exact xnil
-                        · simp!
-                          exact ynil
-                        · simp!
-                          rw [add_comm]
-                          exact hhead
-                        · simp
-                        simp
-                      simp!
-                      exact ynil
-                    case inr ynil =>
-                      rw [decite_false,
-                          add,
-                          decite_false,
-                          decite_false,
-                          decite_false rgt,
-                          decite_false rlt,
-                          decite_true,
-                          decite_false,
-                          decite_true]
-                      · simp!
-                        exact xnil
-                      · simp!
-                        exact ynil
-                      · simp!
-                        rw [add_comm]
-                        exact hhead
-                      · simp
-                      · simp
-                      simp!
-                      exact ynil
-                  simp!
-                  exact xnil
-                case inr xnil =>
-                  rw [decite_false]
-                  cases @or_not (ys = [])
-                  case inl ynil =>
-                    rw [decite_true]
-                    · rw [add,
-                          decite_false,
-                          decite_false,
-                          decite_false rgt,
-                          decite_false rlt,
-                          decite_true,
-                          decite_true,
-                          decite_false]
-                      · simp!
-                        exact xnil
-                      · simp!
-                        exact ynil
-                      · simp!
-                        rw [add_comm]
-                        exact hhead
-                      · simp
-                      simp
-                    simp!
-                    exact ynil
-                  case inr ynil =>
-                    rw [decite_false]
-                    · nth_rewrite 2 [RankList.add]
-                      rw [decite_false,
-                          decite_false,
-                          decite_false rgt,
-                          decite_false rlt,
-                          decite_true,
-                          decite_false,
-                          decite_false]
-                      · apply add_comm'
-                        · apply fluxh_recurse _ x xs xnil xh
-                        apply fluxh_recurse _ y ys ynil yh
-                      · exact xnil
-                      · exact ynil
-                      · simp!
-                        rw [add_comm]
-                        exact hhead
-                      · simp
-                      · simp
-                    exact ynil
-                  simp!
-                  exact xnil
-              simp!
-              exact hhead
-            case inr hhead =>
-              rw [decite_false]
-              · cases @or_not (xs = [])
-                case inl xnil =>
-                  rw [decite_true]
-                  · cases @or_not (ys = [])
-                    case inl ynil =>
-                      rw [decite_true]
-                      · rw [add,
-                            decite_false,
-                            decite_false,
-                            decite_false rgt,
-                            decite_false rlt,
-                            decite_false,
-                            decite_true,
-                            decite_true]
-                        · simp!
-                          constructor
-                          · apply eq_of_le_of_ge
-                            · simp! at rgt
-                              exact rgt
-                            simp! at rlt
-                            exact rlt
-                          apply add_comm
-                        · exact xnil
-                        · exact ynil
-                        · simp!
-                          rw [add_comm]
-                          exact hhead
-                        · simp
-                        simp
-                      exact ynil
-                    case inr ynil =>
-                      rw [decite_false,
-                          add,
-                          decite_false,
-                          decite_false,
-                          decite_false rgt,
-                          decite_false rlt,
-                          decite_false,
-                          decite_false,
-                          decite_true]
-                      · simp!
-                        constructor
-                        · apply eq_of_le_of_ge
-                          · simp! at rgt
-                            exact rgt
-                          simp! at rlt
-                          exact rlt
-                        apply add_comm
-                      · exact xnil
-                      · exact ynil
-                      · simp!
-                        rw [add_comm]
-                        exact hhead
-                      · simp
-                      · simp
-                      exact ynil
-                  exact xnil
-                case inr xnil =>
-                  rw [decite_false]
-                  · cases @or_not (ys = [])
-                    case inl ynil =>
-                      rw [decite_true]
-                      · rw [add,
-                            decite_false,
-                            decite_false,
-                            decite_false rgt,
-                            decite_false rlt,
-                            decite_false,
-                            decite_true,
-                            decite_false]
-                        · simp!
-                          constructor
-                          · apply eq_of_le_of_ge
-                            · simp! at rgt
-                              exact rgt
-                            simp! at rlt
-                            exact rlt
-                          apply add_comm
-                        · simp!
-                          exact xnil
-                        · simp!
-                          exact ynil
-                        · simp!
-                          rw [add_comm]
-                          exact hhead
-                        · simp
-                        simp
-                      exact ynil
-                    case inr ynil =>
-                      rw [decite_false]
-                      · nth_rewrite 2 [add]
-                        rw [decite_false,
-                            decite_false,
-                            decite_false rgt,
-                            decite_false rlt,
-                            decite_false,
-                            decite_false,
-                            decite_false]
-                        · simp!
-                          simp! at rlt rgt
-                          have hr : yr = xr := eq_of_le_of_ge rlt rgt
-                          rw [add_comm, hr]
-                          constructor
-                          · rfl
-                          constructor
-                          · rfl
-                          congr 1
-                          · rw [min_comm]
-                          congr 1
-                          apply add_comm'
-                          · apply fluxh_recurse _ x _ xnil xh
-                          rw [←hr]
-                          apply fluxh_recurse _ y _ ynil yh
-                        · exact xnil
-                        · exact ynil
-                        · simp!
-                          rw [add_comm]
-                          exact hhead
-                        · simp
-                        simp
-                      exact ynil
-                  exact xnil
-              simp!
-              exact hhead
-      · simp
-      simp
-termination_by xs.length + ys.length
-decreasing_by
-  · case _ _ _ _ _ _ _ _ _ _ _ _ _ _ xdef _ _ ydef _ _ _ _ =>
-    unfold fluxh at *
-    rw [xdef, ydef]
-    apply Nat.add_lt_add_of_le_of_lt
-    · rfl
-    apply add_dec_aux
-    simp
-  · case _ _ _ _ _ _ _ _ _ _ _ _ _ _ xdef _ _ ydef _ _ _ _ _ _ =>
-    rw [xdef, ydef]
-    apply Nat.add_lt_add_of_lt_of_le
-    · apply add_dec_aux
-      simp
-    rfl
-  · case _ _ _ _ _ _ _ _ _ _ _ _ _ _ xdef _ _ ydef _ _ _ _ _ _ _ _ _ _ =>
-    rw [xdef, ydef]
-    apply Nat.add_lt_add_of_lt_of_le
-    · apply add_dec_aux
-      simp
-    apply le_of_lt
-    apply add_dec_aux
-    simp
-  case _ _ _ _ _ _ _ _ _ _ _ _ k ks xdef z zs ydef _ _ _ _ _ _ _ _ _ _ =>
-  rw [xdef, ydef]
-  apply Nat.add_lt_add_of_le_of_lt
-  · apply le_of_lt
-    have h := @add_dec_aux (k :: ks)
-    simp! at h
-    apply h
-  have h := @add_dec_aux (z :: zs)
-  simp! at h
-  apply h
-
-def addr : RankList → RankList → ℤ
-  | ⟨xr, xs⟩, ⟨yr, ys⟩ =>
-    if x0 : xs = [] then yr else
-    if y0 : ys = [] then xr else
-    if rlt : xr < yr then yr else
-    if rgt : yr < xr then xr else
-    if hhead : xs.head x0 + ys.head y0 = 0
-      then if xnil : xs.tail = []
-           then if ynil : ys.tail = []
-                then 0
-                else yr - (rlzCount ys.tail).succ
-           else if ynil : ys.tail = []
-                then xr - (rlzCount xs.tail).succ
-                else addr ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                          ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩
-      else xr
-termination_by x y => x.v.length + y.v.length
-decreasing_by
-  apply Nat.add_lt_add_of_le_of_lt
-  · apply le_trans (length_rlz xs.tail)
-    simp
-  apply lt_of_le_of_lt (length_rlz ys.tail)
-  cases ys
-  · simp at y0
-  simp
-
-def addv : RankList → RankList → List ℚ
-  | ⟨xr, xs⟩, ⟨yr, ys⟩ =>
-    if x0 : xs = []
-      then ys
-      else
-    if y0 : ys = []
-      then xs
-      else
-    if rlt : xr < yr
-      then if ynil : ys.tail = []
-           then ys.head y0 :: addNZero (yr - (xr + 1)).toNat xs
-           else ys.head y0 :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys.tail))
-            (addv ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩)
-      else
-    if rgt : yr < xr
-      then if xnil : xs.tail = []
-           then xs.head x0 :: addNZero (xr - (yr + 1)).toNat ys
-           else xs.head x0 :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs.tail))
-            (addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩ ⟨yr, ys⟩)
-      else
-    if hhead : xs.head x0 + ys.head y0 = 0
-      then if xnil : xs.tail = []
-           then if ynil : ys.tail = []
-                then []
-                else remLeadZero ys.tail
-           else if ynil : ys.tail = []
-                then remLeadZero xs.tail
-                else addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                          ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩
-      else if xnil : xs.tail = []
-           then if ynil : ys.tail = []
-                then [xs.head x0 + ys.head y0]
-                else (xs.head x0 + ys.head y0) :: ys.tail
-           else if ynil : ys.tail = []
-                then (xs.head x0 + ys.head y0) :: xs.tail
-                else (xs.head x0 + ys.head y0) ::
-                  addNZero (min (rlzCount xs.tail) (rlzCount ys.tail))
-                  (addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
-                        ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩)
-termination_by x y => x.v.length + y.v.length
-decreasing_by
-  · apply Nat.add_lt_add_of_le_of_lt
-    · rfl
-    apply add_dec_aux y0
-  · apply Nat.add_lt_add_of_lt_of_le
-    · apply add_dec_aux x0
-    rfl
-  · apply Nat.add_lt_add_of_lt_of_le
-    · apply add_dec_aux x0
-    · apply le_of_lt
-      apply add_dec_aux y0
-  apply Nat.add_lt_add_of_lt_of_le
-  · apply add_dec_aux x0
-  apply le_of_lt
-  apply add_dec_aux y0
-
-lemma odd_comm : ∀ x y, odd x y = odd y x := by
-  intro x y ; cases x <;> cases y <;> simp_all! ; apply add_comm
-
-lemma odd_assoc : ∀ x y z, odd (odd x y) z = odd x (odd y z) := by
-  intro x y z
-  cases x
-  case none =>
-    cases y
-    case none =>
-      cases z
-      case none => simp
-      case some z => simp
-    case some y => simp
-  case some x =>
-    cases y
-    case none =>
-      cases z
-      case none => simp
-      case some z => simp
-    case some y =>
-      cases z
-      case none => simp
-      case some z =>
-        simp!
-        apply add_assoc
 
 def oml : Option ℚ → Option ℚ → ℚ
   | none, _ => 0
@@ -1777,434 +1199,6 @@ lemma mulv_assoc {xs ys zs} : mulv (mulv xs ys) zs = mulv xs (mulv ys zs) := by
         congr 2
         simp
 
-theorem r_add_eq_addr (x y : RankList) : (add x y).r = addr x y := by
-  rcases x with ⟨xr,xs⟩
-  rcases y with ⟨yr,ys⟩
-  rw [add, addr]
-  cases xs
-  case nil => simp
-  case cons x xs =>
-    have x0 : x :: xs ≠ [] := by simp
-    rw [decite_false x0]
-    cases ys
-    case nil => simp
-    case cons y ys =>
-      have y0 : y :: ys ≠ [] := by simp
-      rw [decite_false y0]
-      cases @or_not (xr < yr)
-      case inl rlt =>
-        rw [decite_true rlt]
-        cases ys
-        case nil =>
-          rw [decite_true]
-          · rw [decite_false x0,
-                decite_false y0,
-                decite_true rlt]
-          simp
-        case cons y' ys =>
-          rw [decite_false]
-          · rw [decite_false x0,
-                decite_false y0,
-                decite_true rlt]
-          simp
-      case inr rlt =>
-        rw [decite_false rlt]
-        cases @or_not (yr < xr)
-        case inl rgt =>
-          rw [decite_true rgt]
-          cases xs
-          case nil =>
-            rw [decite_true]
-            · rw [decite_false x0,
-                  decite_false y0,
-                  decite_false rlt,
-                  decite_true rgt]
-            simp
-          case cons x' xs =>
-            rw [decite_false]
-            · rw [decite_false x0,
-                  decite_false y0,
-                  decite_false rlt,
-                  decite_true rgt]
-            simp
-        case inr rgt =>
-          rw [decite_false rgt]
-          cases @or_not (x + y = 0)
-          case inl hhead =>
-            rw [decite_true]
-            · cases xs
-              case nil =>
-                rw [decite_true]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_true,
-                          decite_true]
-                      · rfl
-                      · rfl
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_true,
-                          decite_false]
-                      · simp
-                      · rfl
-                      exact hhead
-                    simp
-                rfl
-              case cons x' xs =>
-                rw [decite_false]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_false,
-                          decite_true]
-                      · rfl
-                      · simp
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_false,
-                          decite_false]
-                      · apply r_add_eq_addr
-                      · simp
-                      · simp
-                      exact hhead
-                    simp
-                simp
-            exact hhead
-          case inr hhead =>
-            rw [decite_false]
-            · cases xs
-              case nil =>
-                rw [decite_true]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false]
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false]
-                      exact hhead
-                    simp
-                rfl
-              case cons x' xs =>
-                rw [decite_false]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false]
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false]
-                      exact hhead
-                    simp
-                simp
-            exact hhead
-termination_by x.v.length + y.v.length
-decreasing_by
-  case _ d ds _ _ _ c cs _ _ _ _ _ _ _ _ _ b bs _ hd a as _ hc =>
-  apply Nat.add_lt_add_of_le_of_lt
-  · apply le_trans (length_rlz (b :: bs))
-    simp
-  apply Nat.lt_succ_of_le
-  apply le_trans (length_rlz (a :: as))
-  rfl
-
-lemma r_add_of_eq_r {xr yr : ℤ} {xs ys : List ℚ} (xh : fluxh xr xs) (yh : fluxh yr ys)
-  (h : xr = yr) : (add ⟨xr, xs⟩ ⟨yr, ys⟩).r = xr := by
-  rw [h, add]
-  cases xs
-  case nil => rw [decite_true rfl]
-  case cons x xs =>
-    rw [decite_false (by simp)]
-    cases ys
-    case nil => sorry
-    case cons y ys => sorry
-
-theorem v_add_eq_addv (x y : RankList) : (add x y).v = addv x y := by
-  rcases x with ⟨xr,xs⟩
-  rcases y with ⟨yr,ys⟩
-  rw [add, addv]
-  cases xs
-  case nil => simp
-  case cons x xs =>
-    have x0 : x :: xs ≠ [] := by simp
-    rw [decite_false x0]
-    cases ys
-    case nil => simp
-    case cons y ys =>
-      have y0 : y :: ys ≠ [] := by simp
-      rw [decite_false y0]
-      cases @or_not (xr < yr)
-      case inl rlt =>
-        rw [decite_true rlt]
-        cases ys
-        case nil =>
-          rw [decite_true]
-          · rw [decite_false x0,
-                decite_false y0,
-                decite_true rlt,
-                decite_true]
-            rfl
-          simp
-        case cons y' ys =>
-          rw [decite_false]
-          · rw [decite_false x0,
-                decite_false y0,
-                decite_true rlt,
-                decite_false]
-            · simp!
-              congr
-              apply v_add_eq_addv
-            simp
-          simp
-      case inr rlt =>
-        rw [decite_false rlt]
-        cases @or_not (yr < xr)
-        case inl rgt =>
-          rw [decite_true rgt]
-          cases xs
-          case nil =>
-            rw [decite_true]
-            · rw [decite_false x0,
-                  decite_false y0,
-                  decite_false rlt,
-                  decite_true rgt,
-                  decite_true]
-              rfl
-            simp
-          case cons x' xs =>
-            rw [decite_false]
-            · rw [decite_false x0,
-                  decite_false y0,
-                  decite_false rlt,
-                  decite_true rgt,
-                  decite_false]
-              · simp!
-                congr
-                apply v_add_eq_addv
-              simp
-            simp
-        case inr rgt =>
-          rw [decite_false rgt]
-          cases @or_not (x + y = 0)
-          case inl hhead =>
-            rw [decite_true]
-            · cases xs
-              case nil =>
-                rw [decite_true]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_true,
-                          decite_true]
-                      · rfl
-                      · rfl
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_true,
-                          decite_false]
-                      · simp
-                      · rfl
-                      exact hhead
-                    simp
-                rfl
-              case cons x' xs =>
-                rw [decite_false]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_false,
-                          decite_true]
-                      · rfl
-                      · simp
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_true,
-                          decite_false,
-                          decite_false]
-                      · apply v_add_eq_addv
-                      · simp
-                      · simp
-                      exact hhead
-                    simp
-                simp
-            exact hhead
-          case inr hhead =>
-            rw [decite_false]
-            · cases xs
-              case nil =>
-                rw [decite_true]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false,
-                          decite_true]
-                      · rfl
-                      · rfl
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false,
-                          decite_true]
-                      · rfl
-                      · rfl
-                      exact hhead
-                    simp
-                rfl
-              case cons x' xs =>
-                rw [decite_false]
-                · cases ys
-                  case nil =>
-                    rw [decite_true]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false,
-                          decite_false,
-                          decite_true]
-                      · rfl
-                      · simp
-                      exact hhead
-                    rfl
-                  case cons y' ys =>
-                    rw [decite_false]
-                    · rw [decite_false x0,
-                          decite_false y0,
-                          decite_false rlt,
-                          decite_false rgt,
-                          decite_false,
-                          decite_false,
-                          decite_false]
-                      · simp!
-                        congr
-                        apply v_add_eq_addv
-                      · simp
-                      · simp
-                      exact hhead
-                    simp
-                simp
-            exact hhead
-termination_by x.v.length + y.v.length
-decreasing_by
-  · case _ c cs _ _ b bs _ _ _ _ _ a as _ _ =>
-    apply Nat.add_lt_add_of_le_of_lt
-    · rfl
-    cases @or_not (a = 0)
-    case inl h =>
-      rw [decide_true' h]
-      apply Nat.lt_succ_of_le
-      apply le_trans (length_rlz as)
-      simp
-    case inr h =>
-      rw [decide_false' h]
-      simp
-  · case _ c cs _ _ _ b bs _ _ _ _ _ _ a as _ _ =>
-    apply Nat.add_lt_add_of_lt_of_le
-    · cases @or_not (a = 0)
-      case inl h =>
-        rw [decide_true' h]
-        apply Nat.lt_succ_of_le
-        apply le_trans (length_rlz as)
-        simp
-      case inr h =>
-        rw [decide_false' h]
-        simp
-    rfl
-  · case _ d ds _ _ _ c cs _ _ _ _ _ _ _ _ _ b bs _ _ a as _ _ =>
-    apply Nat.add_lt_add_of_le_of_lt
-    · apply le_trans (length_rlz (b :: bs))
-      simp
-    apply Nat.lt_succ_of_le
-    apply le_trans (length_rlz (a :: as))
-    rfl
-  case _ d ds _ _ _ c cs _ _ _ _ _ _ _ _ _ b bs _ _ a as _ _ =>
-  apply Nat.add_lt_add_of_le_of_lt
-  · apply le_trans (length_rlz (b :: bs))
-    simp
-  apply Nat.lt_succ_of_le
-  apply le_trans (length_rlz (a :: as))
-  rfl
-
-lemma add_eq_addr_addv (x y : RankList) : add x y = ⟨addr x y, addv x y⟩
-  := by rw [←r_add_eq_addr, ←v_add_eq_addv]
-
 lemma mul_v_eq_nil {xr yr : ℤ} {xs ys : List ℚ} :
   (mul ⟨xr,xs⟩ ⟨yr,ys⟩).v = [] ↔ (xs = [] ∨ ys = []) := by
   constructor
@@ -2236,43 +1230,6 @@ lemma mul_r {xr yr : ℤ} {xs ys : List ℚ} :
   xs ≠ [] → ys ≠ [] → (mul ⟨xr,xs⟩ ⟨yr,ys⟩).r = xr + yr := by
   cases xs <;> cases ys <;> simp_all [mul]
 
-lemma addv_nil_iff {xr yr xs ys} : xs = [] ∧ ys = [] ↔ addv ⟨xr,xs⟩ ⟨yr,ys⟩ = [] := by
-  constructor
-  · intro ⟨hx,hy⟩
-    rw [hx, hy, addv, decite_true rfl]
-  intro h
-  constructor
-  · contrapose! h
-    rw [addv,
-        decite_false h]
-    cases ys
-    case nil => simp! ; exact h
-    case cons y ys =>
-      rw [decite_false (by simp)]
-      cases @or_not (xr = yr)
-      case inl hr =>
-        rw [hr, decite_false (by simp),
-            decite_false (by simp)]
-        cases xs
-        case nil => contradiction
-        case cons x xs =>
-          cases @or_not (x + y = 0)
-          case inl hi =>
-            rw [decite_true]
-            · cases xs
-              case nil =>
-                rw [decite_true (by simp)]
-                cases ys
-                case nil => rw [decite_true (by simp)]
-
-theorem add_assoc' (xr yr zr : ℤ) (xs ys zs : List ℚ)
-  (xh : fluxh xr xs) (yh : fluxh yr ys) (zh : fluxh zr zs) :
-    add ⟨xr, xs⟩ (add ⟨yr, ys⟩ ⟨zr, zs⟩) = add (add ⟨xr,xs⟩ ⟨yr,ys⟩) ⟨zr,zs⟩ := by
-  unfold fluxh at *
-  cases xs
-  case nil => sorry
-  case cons x xs => sorry
-
 end RankList
 
 @[reducible]
@@ -2280,12 +1237,12 @@ def bop_pres_fluxh (bop : RankList → RankList → RankList) : Prop :=
   ∀ (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys),
   fluxh (bop ⟨xr,xs⟩ ⟨yr,ys⟩).r (bop ⟨xr,xs⟩ ⟨yr,ys⟩).v
 
-lemma umm?? : bop_pres_fluxh RankList.add''' := by
+lemma umm?? : bop_pres_fluxh RankList.add := by
   unfold bop_pres_fluxh fluxh
   intro xr yr xs ys hx hy
   cases xs
   case nil =>
-    rw [RankList.add''']
+    rw [RankList.add]
     simp!
     exact hy
   case cons x xs =>
@@ -2314,352 +1271,11 @@ lemma zero_def : (0 : Fluxion) = ⟨⟨0,[]⟩, by simp⟩ := by rfl
 @[simp]
 lemma one_def : (1 : Fluxion) = ⟨⟨0,[1]⟩, by simp⟩ := by rfl
 
-theorem addh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys) :
-  ((RankList.add ⟨xr, xs⟩ ⟨yr, ys⟩).v = [] →
-   (RankList.add ⟨xr, xs⟩ ⟨yr, ys⟩).r = 0) ∧
-   (RankList.add ⟨xr, xs⟩ ⟨yr, ys⟩).v.head? ≠ some 0 ∧
-   (RankList.add ⟨xr, xs⟩ ⟨yr, ys⟩).v.getLast? ≠ some 0 := by
-  unfold fluxh at xh yh
-  rw [RankList.add]
-  cases xs
-  case nil =>
-    simp!
-    exact yh
-  case cons x xs =>
-    cases ys
-    case nil => exact xh
-    case cons y ys =>
-      rw [decite_false, decite_false]
-      · cases @or_not (xr < yr)
-        case inl rlt =>
-          rw [decite_true rlt]
-          cases @or_not (ys = [])
-          case inl ynil =>
-            rw [decite_true]
-            · constructor
-              · simp
-              constructor
-              · simp!
-                simp! at yh
-                exact yh.1
-              rw [List.getLast?_cons] at yh
-              rw [List.getLast?_cons,
-                  RankList.getLast?_addNZero_of_ne_nil,
-                  List.getLast?_cons]
-              · cases xs
-                case nil =>
-                  simp! at xh
-                  simp!
-                  exact xh
-                case cons x' xs =>
-                  simp! at xh
-                  simp!
-                  exact xh.2
-              simp!
-            simp!
-            exact ynil
-          case inr ynil =>
-            rw [decite_false]
-            · simp only [ne_eq,
-                         reduceCtorEq,
-                         not_false_eq_true,
-                         List.head_cons,
-                         List.tail_cons,
-                         Nat.succ_eq_add_one,
-                         Nat.cast_add,
-                         Nat.cast_one,
-                         IsEmpty.forall_iff,
-                         List.head?_cons,
-                         Option.some.injEq,
-                         true_and]
-              constructor
-              · simp! at yh
-                exact yh.1
-              have h := (addh xr (yr - (↑(RankList.rlzCount ys) + 1))
-                              (x :: xs) (RankList.remLeadZero ys) xh
-                        (by apply RankList.fluxh_recurse _ y _ ynil yh)).2.2
-              rw [List.getLast?_cons]
-              apply getD_decide (fun a ↦ ¬(some a) = some 0)
-              · intro z hz
-                rw [←hz, RankList.getLast?_addNZero_of_ne_nil]
-                · exact h
-                rw [RankList.v_add_eq_addv]
-                apply RankList.addv_nil_of_nil
-                cases (min (yr - (xr + 1)).toNat (RankList.rlzCount ys))
-                case zero => simp! ; exact h
-                case succ n =>
-                  rw [RankList.getLast?_addNZero_of_gt_0]
-                  · rw [Option.some_inj]
-                    apply getD_decide (fun a ↦ ¬a = 0)
-                    · intro k hk
-                      rw [hk] at h
-                      contrapose! h
-                      rw [h]
-                    simp!
-                    rw [RankList.v_add_eq_addv]
-
-                  simp
-                contrapose! h
-                rw [←h,
-                  (by simp : (
-                      (RankList.add ⟨xr, x :: xs⟩ ⟨yr - (↑(RankList.rlzCount ys) + 1), RankList.remLeadZero ys⟩).v.getLast?
-                      = (RankList.addNZero 0
-                      (RankList.add ⟨xr, x :: xs⟩ ⟨yr - (↑(RankList.rlzCount ys) + 1), RankList.remLeadZero ys⟩).v).getLast?))]
-                congr 2
-                rw [RankList.getLast?_addNZero_of_ne_nil]
-                · exact h
-                rw [RankList.v_add_eq_addv,
-                    RankList.addv,
-                    decite_false (by simp)]
-                cases ys
-                case nil =>
-                  rw [decite_true (by simp)]
-                  simp
-                case cons y' ys =>
-                  simp!
-                  sorry
-
-              intro hn
-              simp!
-              simp! at yh
-              exact yh.1
-            simp!
-            exact ynil
-        case inr rlt =>
-          rw [decite_false rlt]
-          cases @or_not (yr < xr)
-          case inl rgt =>
-            rw [decite_true rgt]
-            cases @or_not (xs = [])
-            case inl xnil =>
-              rw [decite_true]
-              · simp only [ne_eq,
-                           reduceCtorEq,
-                           not_false_eq_true,
-                           List.head_cons,
-                           IsEmpty.forall_iff,
-                           List.head?_cons,
-                           Option.some.injEq,
-                           true_and]
-                constructor
-                · simp! at xh
-                  exact xh.1
-                rw [List.getLast?_cons,
-                    RankList.getLast?_addNZero_of_ne_nil,
-                    List.getLast?_cons]
-                · simp!
-                  apply getD_decide (fun a ↦ ¬a = 0)
-                  · intro z hz
-                    rw [List.getLast?_cons, hz] at yh
-                    simp! at yh
-                    exact yh.2
-                  intro hn
-                  simp! at yh
-                  exact yh.1
-                simp
-              simp!
-              exact xnil
-            case inr xnil =>
-              rw [decite_false]
-              · simp only [ne_eq,
-                           reduceCtorEq,
-                           not_false_eq_true,
-                           List.head_cons,
-                           List.tail_cons,
-                           Nat.succ_eq_add_one,
-                           Nat.cast_add,
-                           Nat.cast_one,
-                           IsEmpty.forall_iff,
-                           List.head?_cons,
-                           Option.some.injEq,
-                           true_and]
-                constructor
-                · simp! at xh
-                  exact xh.1
-                have h := (addh (xr - (↑(RankList.rlzCount xs) + 1)) yr
-                                (RankList.remLeadZero xs) (y :: ys)
-                          (by apply RankList.fluxh_recurse _ x _ xnil xh) yh).2.2
-                rw [List.getLast?_cons]
-                simp!
-                apply getD_decide (fun a ↦ ¬a = 0)
-                · intro z hz
-                  rw [hz] at h
-                  simp! at h
-                  exact h
-                intro hn
-                simp! at xh
-                exact xh.1
-              simp!
-              exact xnil
-          case inr rgt =>
-            rw [decite_false rgt]
-            cases @or_not (x + y = 0)
-            case inl hhead =>
-              rw [decite_true]
-              · cases @or_not (xs = [])
-                case inl xnil =>
-                  rw [decite_true]
-                  · cases @or_not (ys = [])
-                    case inl ynil =>
-                      rw [decite_true]
-                      · simp
-                      simp!
-                      exact ynil
-                    case inr ynil =>
-                      rw [decite_false]
-                      · simp!
-                        apply RankList.fluxh_recurse _ y _ ynil yh
-                      simp!
-                      exact ynil
-                  simp!
-                  exact xnil
-                case inr xnil =>
-                  rw [decite_false]
-                  cases @or_not (ys = [])
-                  case inl ynil =>
-                    rw [decite_true]
-                    · simp!
-                      apply RankList.fluxh_recurse _ x _ xnil xh
-                    simp!
-                    exact ynil
-                  case inr ynil =>
-                    rw [decite_false]
-                    · simp!
-                      apply addh
-                      · apply RankList.fluxh_recurse _ x _ xnil xh
-                      apply RankList.fluxh_recurse _ y _ ynil yh
-                    exact ynil
-                  simp!
-                  exact xnil
-              simp!
-              exact hhead
-            case inr hhead =>
-              rw [decite_false]
-              · cases @or_not (xs = [])
-                case inl xnil =>
-                  rw [decite_true]
-                  · cases @or_not (ys = [])
-                    case inl ynil =>
-                      rw [decite_true]
-                      · simp!
-                        exact hhead
-                      exact ynil
-                    case inr ynil =>
-                      rw [decite_false]
-                      · simp only [ne_eq,
-                                   reduceCtorEq,
-                                   not_false_eq_true,
-                                   List.head_cons,
-                                   List.tail_cons,
-                                   IsEmpty.forall_iff,
-                                   List.head?_cons,
-                                   Option.some.injEq,
-                                   true_and]
-                        constructor
-                        · exact hhead
-                        cases ys
-                        case nil => simp at ynil
-                        case cons y' ys =>
-                          rw [List.getLast?_cons_cons]
-                          simp only [reduceCtorEq,
-                                     IsEmpty.forall_iff,
-                                     List.head?_cons,
-                                     ne_eq,
-                                     Option.some.injEq,
-                                     List.getLast?_cons_cons,
-                                     true_and] at yh
-                          exact yh.2
-                      exact ynil
-                  exact xnil
-                case inr xnil =>
-                  rw [decite_false]
-                  · cases @or_not (ys = [])
-                    case inl ynil =>
-                      rw [decite_true]
-                      · simp only [ne_eq,
-                                   reduceCtorEq,
-                                   not_false_eq_true,
-                                   List.head_cons,
-                                   List.tail_cons,
-                                   IsEmpty.forall_iff,
-                                   List.head?_cons,
-                                   Option.some.injEq,
-                                   true_and]
-                        constructor
-                        · exact hhead
-                        cases xs
-                        case nil => simp at xnil
-                        case cons x' xs =>
-                          simp only [reduceCtorEq,
-                                     IsEmpty.forall_iff,
-                                     List.head?_cons,
-                                     ne_eq,
-                                     Option.some.injEq,
-                                     List.getLast?_cons_cons,
-                                     true_and] at xh
-                          rw [List.getLast?_cons_cons]
-                          exact xh.2
-                      exact ynil
-                    case inr ynil =>
-                      rw [decite_false]
-                      · rw [List.head_cons, List.head_cons, List.tail_cons, List.tail_cons]
-                        apply addh xr (yr - ↑(RankList.rlzCount (y :: ys).tail).succ) ((x + y) :: RankList.addNZero (min (RankList.rlzCount xs) (RankList.rlzCount ys)) (RankList.add ⟨xr - ↑(RankList.rlzCount xs).succ,RankList.remLeadZero xs ⟩ ⟨yr - ↑(RankList.rlzCount ys).succ,RankList.remLeadZero ys ⟩).v) (RankList.remLeadZero ys)
-                        · unfold fluxh
-                          simp!
-                          exact hhead
-                        apply addh
-                        · apply RankList.fluxh_recurse _ x _ xnil xh
-                        apply RankList.fluxh_recurse _ y _ ynil yh
-                      exact ynil
-                  exact xnil
-              simp!
-              exact hhead
-      · simp
-      simp
-termination_by xs.length + ys.length
-decreasing_by
-  · case _ _ _ _ _ _ _ _ _ _ _ _ k ks xdef z zs ydef _ _ _ _ =>
-    unfold fluxh at *
-    rw [xdef, ydef]
-    apply Nat.add_lt_add_of_le_of_lt
-    · rfl
-    have h := @RankList.add_dec_aux (z :: zs)
-    simp! at h
-    apply h
-  · case _ _ _ _ _ _ _ _ _ _ _ _ k ks xdef z zs ydef _ _ _ _ _ _ =>
-    rw [xdef, ydef]
-    apply Nat.add_lt_add_of_lt_of_le
-    · have h := @RankList.add_dec_aux (k :: ks)
-      simp! at h
-      apply h
-    rfl
-  · case _ _ _ _ _ _ _ _ _ _ _ _ k ks xdef z zs ydef _ _ _ _ _ _ _ _ _ _ =>
-    rw [xdef, ydef]
-    apply Nat.add_lt_add_of_lt_of_le
-    · have h := @RankList.add_dec_aux (k :: ks)
-      simp! at h
-      apply h
-    apply le_of_lt
-    have h := @RankList.add_dec_aux (z :: zs)
-    simp! at h
-    apply h
-  case _ _ _ _ _ _ _ _ _ _ _ _ k ks xdef z zs ydef _ _ _ _ _ _ _ _ _ _ =>
-  rw [xdef, ydef]
-  apply Nat.add_lt_add_of_le_of_lt
-  · apply le_of_lt
-    have h := @RankList.add_dec_aux (k :: ks)
-    simp! at h
-    apply h
-  have h := @RankList.add_dec_aux (z :: zs)
-  simp! at h
-  apply h
-
-lemma addh' : bop_pres_fluxh RankList.add := addh
 
 def add : Fluxion → Fluxion → Fluxion
   | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩ => {
     f := RankList.add ⟨xr,xs⟩ ⟨yr,ys⟩
-    h := addh xr yr xs ys xh yh
+    h := umm?? xr yr xs ys xh yh
   }
 
 instance : Add Fluxion where
@@ -2776,7 +1392,7 @@ lemma neg_def (x : Fluxion) : - x = ⟨⟨x.f.r, (- ·) <$> x.f.v⟩, by simp! ;
 
 @[simp]
 lemma add_def {x y : Fluxion} :
-  x + y = ⟨RankList.add x.f y.f, addh x.f.r y.f.r x.f.v y.f.v x.h y.h⟩ := by rfl
+  x + y = ⟨RankList.add x.f y.f, umm?? x.f.r y.f.r x.f.v y.f.v x.h y.h⟩ := by rfl
 
 @[simp]
 lemma mul_def {x y : Fluxion} :
@@ -2805,80 +1421,45 @@ def nsmul (n : ℕ) : Fluxion → Fluxion :=
         rw [hq, h2]
     }
 
+lemma normalise_eq_0_of_all0 {r xs} (h : RankList.remLeadZero xs = []) :
+  RankList.normalise ⟨r, xs⟩ = (0 : RankList) := by
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases @or_not (x = 0)
+    case inl hx =>
+      rw [hx]
+      simp!
+      rw [hx] at h
+      simp! at h
+      apply normalise_eq_0_of_all0 h
+    case inr hx =>
+      simp! at h
+      rw [decide_false' hx] at h
+      contradiction
+
+lemma nac_aux {xs} : RankList.remLeadZero (zodd (List.map (fun x ↦ -x) xs) xs) = [] := by
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    simp!
+    apply nac_aux
+
 lemma neg_add_cancel' (x : RankList) :
   ∀ (xh : fluxh x.r x.v), RankList.add ⟨x.r, (- ·) <$> x.v⟩ x = ⟨0,[]⟩ := by
   unfold fluxh
   intro xh
   rcases x with ⟨xr,xs⟩
-  simp!
-  rw [RankList.add]
   cases xs
   case nil =>
+    simp! at xh
+    rw [xh]
+    simp
+  case cons x xs =>
     simp!
     simp! at xh
-    exact xh
-  case cons x xs =>
-    rw [decite_false, decite_false, decite_false, decite_false, decite_true]
-    · cases xs
-      case nil =>
-        rw [decite_true, decite_true]
-        · simp
-        simp
-      case cons x' xs =>
-        rw [decite_false, decite_false]
-        · simp
-          cases @or_not (x' = 0)
-          case inl h =>
-            rw [h]
-            simp!
-            rw [RankList.rlz_map,
-                RankList.rlzCount_map]
-            · apply neg_add_cancel'
-               ⟨xr - (↑(RankList.rlzCount xs) + 1 + 1),
-                RankList.remLeadZero xs⟩
-              have h0 := RankList.fluxh_recurse xr x (x' :: xs) (by simp) xh
-              simp! at h0
-              rw [decide_true' h, decide_true' h] at h0
-              simp!
-              exact h0
-            · simp
-            simp
-          case inr h =>
-            rw [RankList.rlzCount,
-                RankList.rlzCount,
-                RankList.remLeadZero,
-                RankList.remLeadZero,
-                decide_false' h,
-                decide_false' h,
-                decide_false' _,
-                decide_false' _]
-            · simp!
-              apply neg_add_cancel' ⟨xr - 1, (x' :: xs)⟩
-              simp! at xh
-              unfold fluxh
-              simp!
-              constructor
-              · exact h
-              exact xh.2
-            · simp!
-              exact h
-            simp!
-            exact h
-        · simp
-        simp
-    · simp
-    · simp
-    · simp
-    · simp
-    simp
-termination_by x.v.length
-decreasing_by
-  · case _ z _ _ _ _ z' zs _ _ _ _ =>
-    simp!
-    rw [Nat.lt_succ_iff]
-    apply le_trans (@RankList.length_rlz zs)
-    simp
-  simp!
+    apply normalise_eq_0_of_all0
+    apply nac_aux
 
 lemma mul_comm' (x y : RankList) (xh : fluxh x.r x.v) (yh : fluxh y.r y.v) :
   RankList.mul x y = RankList.mul y x := by
@@ -2932,81 +1513,15 @@ theorem only_singletons_invertible {x : Fluxion} : (∃ y, x * y = 1) ↔ x.f.v.
       simp! at hx
       apply Rat.instDivisionRing.12 _ hx
 
-/-
-lemma left_distrib' : ∀ a b c : Fluxion, a * (b + c) = a * b + a * c := by
-  cases xs
-  case nil =>
-    simp!
-    rw [RankList.add]
-    simp
-  case cons x xs =>
-    cases ys
-    case nil =>
-      simp!
-      rw [RankList.add]
-      simp!
-      rw [RankList.add]
-      simp
-    case cons y ys =>
-      cases zs
-      case nil =>
-        simp!
-        rw [RankList.add]
-        simp!
-        rw [RankList.add]
-        simp
-        rw [RankList.mulv]
-        simp
-      case cons z zs =>
-        simp!
-        rw [RankList.mul,
-            RankList.v_add_eq_addv,
-            RankList.r_add_eq_addr,
-            RankList.mulv,
-            RankList.mulv,
-            RankList.add,
-            RankList.addr,
-            RankList.addv]
-        · simp!
-          cases @or_not (yr < zr)
-          case inl h =>
-            rw [decide_true' h,
-                decide_true' h,
-                decide_true' h]
-            cases zs
-            case nil =>
-              simp!
-              cases xs
-              case nil =>
-                simp!
-                rw [RankList.mulv,
-                    RankList.mulv,
-                    zodd_nil_right]
-                ring_nf
-                rw [RankList.map_addNZero]
-                · rw [List.map_cons]
-                apply mul_zero
-              case cons x' xs =>
-                rw [decide_false']
-                · sorry
-                rw [RankList.mulv]
-                simp
--/
-
 instance : CommRing Fluxion where
-  zero_add a := by
-    simp!
-    congr
-    rw [RankList.add]
-    simp
+  zero_add a := by simp
   add_zero
   | ⟨⟨ar,as⟩,ah⟩ => by
     simp!
-    rw [RankList.add.eq_def]
     cases as
     · simp! at ah
       rw [ah]
-      simp
+      simp!
     simp
   zero_mul
   | ⟨⟨ar,as⟩,ah⟩ => by simp!
@@ -3084,6 +1599,7 @@ instance : CommRing Fluxion where
     | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by sorry
   right_distrib
     | ⟨⟨xr,xs⟩,xh⟩, ⟨⟨yr,ys⟩,yh⟩, ⟨⟨zr,zs⟩,zh⟩ => by sorry
+  /-
   nsmul_succ
     | n, ⟨⟨r,xs⟩,⟨h0,h1,h2⟩⟩ => by
       rw [nsmul, decite_false (by simp)]
@@ -3091,59 +1607,21 @@ instance : CommRing Fluxion where
       cases n
       case zero =>
         rw [nsmul, decite_true rfl]
-        simp!
-        rw [RankList.add, decite_true rfl]
+        simp
       case succ n =>
         rw [nsmul, decite_false (by simp)]
         simp!
-        rw [RankList.add_eq_addr_addv]
-        congr
-        case e_r =>
-          rw [RankList.addr]
-          cases xs
-          case nil => rw [decite_true (by simp)]
-          case cons x xs =>
-            rw [decite_false (by simp),
-                decite_false (by simp),
-                decite_false (by simp),
-                decite_false (by simp),
-                decite_false]
-            · cases xs
-              case nil => rw [decite_true (by simp)]
-              case cons x' xs =>
-                rw [decite_false (by simp),
-                    decite_false (by simp)]
-                simp!
-
-        case e_v =>
-        rw [RankList.add]
         cases xs
-        case nil =>
-          rw [decite_true (by simp)]
-          simp!
+        case nil => simp
         case cons x xs =>
-          rw [decite_false (by simp),
-              decite_false (by simp),
-              decite_false (by simp),
-              decite_false (by simp),
-              decite_false]
-          · cases xs
-            case nil =>
-              rw [decite_true (by simp),
-                  decite_true (by simp)]
-              simp!
-              rw [add_mul, one_mul]
-            case cons x' xs =>
-              rw [decite_false (by simp),
-                  decite_false (by simp)]
-
-
-
-
-
+          simp!
+          simp! at h1
+          rw [decide_false']
+          · -/
 
 end Fluxion
 
+/-
 def F (α : Type) [DivisionRing α] := α → α
 
 namespace F
@@ -3188,12 +1666,12 @@ lemma ofnatsnd [DivisionRing α] : ∀ n, @Nat.unaryCast (F α) _ _ _ n = (instO
     rw [ih]
     rfl
 
-lemma ofnatþrd [r : DivisionRing α] (n : ℕ)
+lemma ofnatþrd {α} [r : DivisionRing α] (n : ℕ)
   : (fun (_ : α) ↦ @Nat.cast α r.toAddGroupWithOne.toNatCast n : F α) = (instOfNat n).ofNat := by
   rfl
 
 @[simp]
-instance [DivisionRing α] : Ring (F α) where
+instance {α} [DivisionRing α] : Ring (F α) where
   nsmul := nsmul
   zsmul
     | Int.ofNat n, f => nsmul n f
@@ -3275,24 +1753,24 @@ instance [DivisionRing α] : Ring (F α) where
     simp!
     rw [right_distrib, one_mul]
 
-lemma zero_eq_zero [DivisionRing α] (x : α) : (0 : F α) x = (0 : α) := by
+lemma zero_eq_zero {α} [DivisionRing α] (x : α) : (0 : F α) x = (0 : α) := by
   rw [instOfNat]
   simp
 
-lemma funextex (x : α) : ∀ f g : α → α, f = g → ∃ x, f x = g x := by
+lemma funextex {α} (x : α) : ∀ f g : α → α, f = g → ∃ x, f x = g x := by
   intro f g h
   rw [funext_iff] at h
   specialize h x
   use x
 
 @[simp]
-instance [DivisionRing α] : Inv (F α) := ⟨fun f x ↦ (f x)⁻¹⟩
+instance {α} [DivisionRing α] : Inv (F α) := ⟨fun f x ↦ (f x)⁻¹⟩
 
-instance [DivisionRing α] : DivisionRing (F α) where
+instance {α} [DivisionRing α] : DivisionRing (F α) where
   exists_pair_ne := by
     use (fun _ ↦ 0)
     use (fun _ ↦ 1)
-    simp
+    simp!
     intro h
     apply funext_iff.1 at h
     specialize h 1
@@ -3301,7 +1779,7 @@ instance [DivisionRing α] : DivisionRing (F α) where
     apply funext
     intro x
     rw [instHMul]
-    simp
+    simp!
     rw [DivisionRing.mul_inv_cancel]
     · rfl
     sorry
@@ -3315,11 +1793,11 @@ instance [DivisionRing α] : DivisionRing (F α) where
     intro x
     dsimp
     rw [instHMul]
-    simp
+    simp!
     rw [←mul_assoc]
     congr
     · rw [ofnatfst q.num x, Nat.cast, NatCast.natCast]
-      simp
+      simp!
       rw [ofnatsnd q.num]
       rfl
     revert x
@@ -3363,3 +1841,4 @@ theorem apply_add {α} [DivisionRing α] :
   rcases g with ⟨⟨gr,gs⟩,gh⟩
   simp!
   sorry
+-/
