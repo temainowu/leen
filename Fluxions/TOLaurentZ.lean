@@ -57,6 +57,10 @@ def zodd := List.zipWithAll odd
 lemma zodd_nil_left {xs : List ℚ} : zodd [] xs = xs := by rw [zodd] ; cases xs <;> simp
 
 @[simp]
+lemma zodd_nil_left' {xs ys : List ℚ} {h : xs = []} : zodd xs ys = ys
+  := by rw [h, zodd] ; cases xs <;> simp
+
+@[simp]
 lemma zodd_nil_right {xs : List ℚ} : zodd xs [] = xs := by rw [zodd, List.zipWithAll_nil] ; simp
 
 @[simp]
@@ -327,12 +331,15 @@ structure RankList where
 namespace RankList
 
 @[simp]
-def add_n_zero : ℕ → List ℚ → List ℚ
+def addNZero : ℕ → List ℚ → List ℚ
   | 0, xs => xs
-  | Nat.succ n, xs => 0 :: add_n_zero n xs
+  | Nat.succ n, xs => 0 :: addNZero n xs
+
+def addNZero_of_ne0 {n xs} (h : n ≠ 0) : addNZero n xs = 0 :: addNZero (n - 1) xs
+  := by cases n ; (· simp at h) ; simp
 
 lemma map_addNZero {f xs n} (h : f 0 = 0) :
-  List.map f (add_n_zero n xs) = add_n_zero n (List.map f xs) := by
+  List.map f (addNZero n xs) = addNZero n (List.map f xs) := by
   cases n
   case zero => simp
   case succ n =>
@@ -342,19 +349,17 @@ lemma map_addNZero {f xs n} (h : f 0 = 0) :
     apply map_addNZero h
 
 @[simp]
-theorem add_n_zero_getLast? : ∀ n xs, (add_n_zero n xs).getLast?.getD 0 = (xs.getLast?.getD 0) := by
+theorem getLast?_addNZero : ∀ n xs, (addNZero n xs).getLast?.getD 0 = (xs.getLast?.getD 0) := by
   intro n xs
   induction n
   case zero =>
     simp!
   case succ n ih =>
-    rw [add_n_zero, List.getLast?_cons, ih]
+    rw [addNZero, List.getLast?_cons, ih]
     simp!
 
-theorem add_n_zero_getLast?_0 : ∀ xs, (add_n_zero 0 xs).getLast? = xs.getLast? := by simp
-
-theorem add_n_zero_getLast?_of_ne_nil :
-    ∀ (n : ℕ) xs, xs ≠ [] → (add_n_zero n xs).getLast? = xs.getLast? := by
+theorem getLast?_addNZero_of_ne_nil :
+    ∀ (n : ℕ) xs, xs ≠ [] → (addNZero n xs).getLast? = xs.getLast? := by
   intro n xs hxs
   cases xs
   case nil => simp at hxs
@@ -362,19 +367,19 @@ theorem add_n_zero_getLast?_of_ne_nil :
     cases n
     case zero => simp
     case succ n =>
-      rw [add_n_zero,
+      rw [addNZero,
           List.getLast?_cons,
-          add_n_zero_getLast?,
+          getLast?_addNZero,
           List.getLast?_cons]
       simp
 
-theorem add_n_zero_getLast?_of_gt_0 :
-    ∀ (n : ℕ) xs, 0 < n → (add_n_zero n xs).getLast? = xs.getLast?.getD 0 := by
+theorem getLast?_addNZero_of_gt_0 :
+    ∀ (n : ℕ) xs, 0 < n → (addNZero n xs).getLast? = xs.getLast?.getD 0 := by
   intro n xs h
   cases n
   case zero => simp at h
   case succ n =>
-    rw [add_n_zero,
+    rw [addNZero,
         List.getLast?_cons]
     simp
 
@@ -633,23 +638,114 @@ lemma add_dec_aux {xs : List ℚ} : xs ≠ [] → (remLeadZero xs.tail).length <
 
 def rlmk (r : ℤ) (xs : List ℚ) : RankList := ⟨r - (rlzCount xs).succ, remLeadZero xs⟩
 
+
+@[simp]
+def rankShiftZodd (xr yr : ℤ) (xs ys : List ℚ) : List ℚ :=
+  zodd (addNZero (yr - xr).toNat xs) (addNZero (xr - yr).toNat ys)
+
+lemma rankShiftZodd_comm {xr yr xs ys} :
+  rankShiftZodd xr yr xs ys = rankShiftZodd yr xr ys xs := by
+  rw [rankShiftZodd, rankShiftZodd, zodd_comm]
+
+@[simp]
+def normalise : RankList → RankList
+  | ⟨_, []⟩ => ⟨0, []⟩
+  | ⟨r, x :: xs⟩ => if x = 0 then normalise ⟨r - 1, xs⟩
+                             else ⟨r, (remLeadZero (x :: xs).reverse).reverse⟩
+termination_by x => x.v.length
+
+lemma normalise_zero_cons {r xs} : normalise ⟨r, 0 :: xs⟩ = normalise ⟨r - 1, xs⟩ := by simp!
+
+lemma nhf_aux {r x xs} (h : x ≠ 0) :
+  normalise ⟨r, x :: xs⟩ = ⟨r, (remLeadZero (x :: xs).reverse).reverse⟩ := by
+  simp!
+  intro h0
+  contradiction
+
+lemma rlz_append {x xs ys} (h : x ≠ 0) :
+  remLeadZero (ys ++ (x :: xs)) = remLeadZero ys ++ (x :: xs) := by
+    induction ys
+    case nil =>
+      simp!
+      intro h1
+      contradiction
+    case cons y ys ih =>
+      simp!
+      rw [ih]
+      cases @or_not (y = 0)
+      case inl hy =>
+        rw [hy]
+        simp
+      case inr hy =>
+        rw [decide_false' hy,
+            decide_false' hy]
+        simp
+
+lemma normalise_has_fluxh (x : RankList) : fluxh (normalise x).r (normalise x).v := by
+  unfold fluxh
+  rcases x with ⟨r,xs⟩
+  cases xs
+  case nil => simp
+  case cons x xs =>
+    cases @or_not (x = 0)
+    case inl h =>
+      rw [h]
+      simp!
+      apply normalise_has_fluxh
+    case inr h =>
+      simp!
+      rw [decide_false' h]
+      simp!
+      rw [rlz_append h,
+          List.getLast?_append]
+      simp!
+      constructor
+      · exact h
+      apply getD_decide (fun x ↦ ¬x = 0)
+      · intro z hz
+        contrapose! hz
+        rw [hz]
+        apply head?_rlz
+      intros
+      exact h
+termination_by x.v.length
+
+@[simp]
+def add''' : RankList → RankList → RankList
+  | ⟨_, []⟩, y => y
+  | x, ⟨_, []⟩ => x
+  | ⟨xr, xs⟩, ⟨yr, ys⟩ => normalise ⟨max xr yr, rankShiftZodd xr yr xs ys⟩
+
+lemma add'''_comm (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys) :
+  add''' ⟨xr, xs⟩ ⟨yr, ys⟩ = add''' ⟨yr, ys⟩ ⟨xr, xs⟩ := by
+  unfold fluxh at xh yh
+  cases xs
+  case nil =>
+    cases ys
+    case nil =>
+      simp! at xh yh
+      rw [xh, yh]
+    case cons y ys => simp
+  case cons x xs =>
+    cases ys
+    case nil => simp
+    case cons y ys =>
+      simp!
+      rw [zodd_comm, max_comm]
+
 def add'' : RankList → RankList → RankList
   | ⟨_, []⟩, y => y
   | x, ⟨_, []⟩ => x
   | ⟨xr, [x]⟩, ⟨yr, [y]⟩ =>
-    if xr = yr
-    then if x + y = 0 then ⟨0, []⟩ else ⟨xr, [x + y]⟩
-    else if yr < xr
-         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat [y]⟩
-         else ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat [x]⟩
+    if xr = yr ∧ x + y = 0 then ⟨0, []⟩ else ⟨max xr yr, rankShiftZodd xr yr [x] [y]⟩
   | ⟨xr, [x]⟩, ⟨yr, y :: ys⟩ =>
     if xr = yr
     then if x + y = 0
          then rlmk yr ys
          else ⟨xr, (x + y) :: ys⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat (y :: ys)⟩
-         else ⟨yr, y :: add_n_zero (min (yr - (xr + 1)).toNat (rlzCount ys))
+         then ⟨xr, x :: addNZero (xr - (yr + 1)).toNat (y :: ys)⟩
+         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
                 (add'' ⟨xr, [x]⟩ (rlmk yr ys)).v⟩
   | ⟨xr, x :: xs⟩, ⟨yr, [y]⟩ =>
     if xr = yr
@@ -657,19 +753,19 @@ def add'' : RankList → RankList → RankList
          then rlmk xr xs
          else ⟨xr, (x + y) :: xs⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (min (xr - (yr + 1)).toNat (rlzCount xs))
+         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
                 (add'' (rlmk xr xs) ⟨yr, [y]⟩).v⟩
-         else ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat (x :: xs)⟩
+         else ⟨yr, y :: addNZero (yr - (xr + 1)).toNat (x :: xs)⟩
   | ⟨xr, x :: xs⟩, ⟨yr, y :: ys⟩ =>
     if xr = yr
     then if x + y = 0
          then add'' (rlmk xr xs) (rlmk yr ys)
-         else ⟨xr, (x + y) :: add_n_zero (min (rlzCount xs) (rlzCount ys))
+         else ⟨xr, (x + y) :: addNZero (min (rlzCount xs) (rlzCount ys))
                         (add'' (rlmk xr xs) (rlmk yr ys)).v⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (min (xr - (yr + 1)).toNat (rlzCount xs))
+         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
                         (add'' (rlmk xr xs) ⟨yr,y :: ys⟩).v⟩
-         else ⟨yr, y :: add_n_zero (min (yr - (xr + 1)).toNat (rlzCount ys))
+         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
                         (add'' ⟨xr,x :: xs⟩ (rlmk yr ys)).v⟩
 termination_by x y => x.v.length + y.v.length
 decreasing_by
@@ -679,42 +775,40 @@ def add' : RankList → RankList → RankList
   | ⟨_, []⟩, y => y
   | x, ⟨_, []⟩ => x
   | ⟨xr, [x]⟩, ⟨yr, [y]⟩ =>
-    if xr < yr
-    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat [x]⟩
+    if xr = yr
+    then if x + y = 0 then ⟨0, []⟩ else ⟨xr, [x + y]⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat [y]⟩
-         else if x + y = 0 then ⟨0, []⟩ else ⟨xr, [x + y]⟩
+         then ⟨xr, x :: addNZero (xr - (yr + 1)).toNat [y]⟩
+         else ⟨yr, y :: addNZero (yr - (xr + 1)).toNat [x]⟩
   | ⟨xr, [x]⟩, ⟨yr, y :: ys⟩ =>
-    if xr < yr
-    then ⟨yr, y :: add_n_zero (min (yr - (xr + 1)).toNat (rlzCount ys))
-      (add' ⟨xr, [x]⟩ ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩).v⟩
+    if xr = yr
+    then if x + y = 0
+         then rlmk yr ys
+         else ⟨xr, (x + y) :: ys⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat (y :: ys)⟩
-         else if x + y = 0
-              then ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩
-              else ⟨xr, (x + y) :: ys⟩
+         then ⟨xr, x :: addNZero (xr - (yr + 1)).toNat (y :: ys)⟩
+         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
+                (add'' ⟨xr, [x]⟩ (rlmk yr ys)).v⟩
   | ⟨xr, x :: xs⟩, ⟨yr, [y]⟩ =>
-    if xr < yr
-    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat (x :: xs)⟩
+    if xr = yr
+    then if x + y = 0
+         then rlmk xr xs
+         else ⟨xr, (x + y) :: xs⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (min (xr - (yr + 1)).toNat (rlzCount xs))
-          (add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩ ⟨yr, [y]⟩).v⟩
-         else if x + y = 0
-              then ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩
-              else ⟨xr, (x + y) :: xs⟩
+         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
+                (add'' (rlmk xr xs) ⟨yr, [y]⟩).v⟩
+         else ⟨yr, y :: addNZero (yr - (xr + 1)).toNat (x :: xs)⟩
   | ⟨xr, x :: xs⟩, ⟨yr, y :: ys⟩ =>
-    if xr < yr
-    then ⟨yr, y :: add_n_zero (yr - (xr + 1)).toNat
-      (add' ⟨xr, x :: xs⟩ ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩).v⟩
+    if xr = yr
+    then if x + y = 0
+         then add'' (rlmk xr xs) (rlmk yr ys)
+         else ⟨xr, (x + y) :: addNZero (min (rlzCount xs) (rlzCount ys))
+                        (add'' (rlmk xr xs) (rlmk yr ys)).v⟩
     else if yr < xr
-         then ⟨xr, x :: add_n_zero (xr - (yr + 1)).toNat
-          (add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩ ⟨yr, y :: ys⟩).v⟩
-         else if x + y = 0
-              then add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩
-                        ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩
-              else ⟨xr, (x + y) :: add_n_zero (min (rlzCount xs) (rlzCount ys))
-                  (add' ⟨xr - (rlzCount xs).succ, remLeadZero xs⟩
-                        ⟨yr - (rlzCount ys).succ, remLeadZero ys⟩).v⟩
+         then ⟨xr, x :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs))
+                        (add'' (rlmk xr xs) ⟨yr,y :: ys⟩).v⟩
+         else ⟨yr, y :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys))
+                        (add'' ⟨xr,x :: xs⟩ (rlmk yr ys)).v⟩
 termination_by x y => x.v.length + y.v.length
 decreasing_by
   all_goals (simp! ; try apply add_lt_add_of_lt_of_lt) <;> apply Nat.lt_succ_iff.2 (length_rlz _)
@@ -729,14 +823,14 @@ def add : RankList → RankList → RankList
       else
     if rlt : xr < yr
       then if ynil : ys.tail = []
-           then ⟨yr, ys.head y0 :: add_n_zero (yr - (xr + 1)).toNat xs⟩
-           else ⟨yr, ys.head y0 :: add_n_zero (min (yr - (xr + 1)).toNat (rlzCount ys.tail))
+           then ⟨yr, ys.head y0 :: addNZero (yr - (xr + 1)).toNat xs⟩
+           else ⟨yr, ys.head y0 :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys.tail))
             (add ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩).v⟩
       else
     if rgt : yr < xr
       then if xnil : xs.tail = []
-           then ⟨xr, xs.head x0 :: add_n_zero (xr - (yr + 1)).toNat ys⟩
-           else ⟨xr, xs.head x0 :: add_n_zero (min (xr - (yr + 1)).toNat (rlzCount xs.tail))
+           then ⟨xr, xs.head x0 :: addNZero (xr - (yr + 1)).toNat ys⟩
+           else ⟨xr, xs.head x0 :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs.tail))
             (add ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩ ⟨yr, ys⟩).v⟩
       else
     if hhead : xs.head x0 + ys.head y0 = 0
@@ -755,7 +849,7 @@ def add : RankList → RankList → RankList
            else if ynil : ys.tail = []
                 then ⟨xr, (xs.head x0 + ys.head y0) :: xs.tail⟩
                 else ⟨xr, (xs.head x0 + ys.head y0) ::
-                  add_n_zero (min (rlzCount xs.tail) (rlzCount ys.tail))
+                  addNZero (min (rlzCount xs.tail) (rlzCount ys.tail))
                   (add ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
                        ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩).v⟩
 termination_by x y => x.v.length + y.v.length
@@ -780,11 +874,11 @@ decreasing_by
 #eval add'' ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,0,1,3,2]⟩
 #eval add ⟨0,[1,0,0,2,3]⟩ ⟨0,[1,0,0,0,1,3,2]⟩
 #eval add ⟨10,[1,0,2,3]⟩ ⟨10,[1,0,0,0,1,3,2]⟩
--- ⟨0, (1 + 1) :: add_n_zero (min 1 3) (add
+-- ⟨0, (1 + 1) :: addNZero (min 1 3) (add
 -- ⟨-2, [2,3]⟩
 -- ⟨-4, [1,3,2]⟩).v⟩
 #eval add ⟨-2, [2,3]⟩ ⟨-4, [1,3,2]⟩
--- ⟨-2, 2 :: add_n_zero (-2 - (-4 + 1)).toNat
+-- ⟨-2, 2 :: addNZero (-2 - (-4 + 1)).toNat
 #eval add ⟨-3, [3]⟩ ⟨-4, [1,3,2]⟩
 
 lemma fluxh_recurse (r : ℤ) (x : ℚ) (xs : List ℚ) : xs ≠ [] → fluxh r (x :: xs) →
@@ -1208,14 +1302,14 @@ def addv : RankList → RankList → List ℚ
       else
     if rlt : xr < yr
       then if ynil : ys.tail = []
-           then ys.head y0 :: add_n_zero (yr - (xr + 1)).toNat xs
-           else ys.head y0 :: add_n_zero (min (yr - (xr + 1)).toNat (rlzCount ys.tail))
+           then ys.head y0 :: addNZero (yr - (xr + 1)).toNat xs
+           else ys.head y0 :: addNZero (min (yr - (xr + 1)).toNat (rlzCount ys.tail))
             (addv ⟨xr, xs⟩ ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩)
       else
     if rgt : yr < xr
       then if xnil : xs.tail = []
-           then xs.head x0 :: add_n_zero (xr - (yr + 1)).toNat ys
-           else xs.head x0 :: add_n_zero (min (xr - (yr + 1)).toNat (rlzCount xs.tail))
+           then xs.head x0 :: addNZero (xr - (yr + 1)).toNat ys
+           else xs.head x0 :: addNZero (min (xr - (yr + 1)).toNat (rlzCount xs.tail))
             (addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩ ⟨yr, ys⟩)
       else
     if hhead : xs.head x0 + ys.head y0 = 0
@@ -1234,7 +1328,7 @@ def addv : RankList → RankList → List ℚ
            else if ynil : ys.tail = []
                 then (xs.head x0 + ys.head y0) :: xs.tail
                 else (xs.head x0 + ys.head y0) ::
-                  add_n_zero (min (rlzCount xs.tail) (rlzCount ys.tail))
+                  addNZero (min (rlzCount xs.tail) (rlzCount ys.tail))
                   (addv ⟨xr - (rlzCount xs.tail).succ, remLeadZero xs.tail⟩
                         ⟨yr - (rlzCount ys.tail).succ, remLeadZero ys.tail⟩)
 termination_by x y => x.v.length + y.v.length
@@ -2159,7 +2253,17 @@ lemma addv_nil_iff {xr yr xs ys} : xs = [] ∧ ys = [] ↔ addv ⟨xr,xs⟩ ⟨y
       case inl hr =>
         rw [hr, decite_false (by simp),
             decite_false (by simp)]
-
+        cases xs
+        case nil => contradiction
+        case cons x xs =>
+          cases @or_not (x + y = 0)
+          case inl hi =>
+            rw [decite_true]
+            · cases xs
+              case nil =>
+                rw [decite_true (by simp)]
+                cases ys
+                case nil => rw [decite_true (by simp)]
 
 theorem add_assoc' (xr yr zr : ℤ) (xs ys zs : List ℚ)
   (xh : fluxh xr xs) (yh : fluxh yr ys) (zh : fluxh zr zs) :
@@ -2175,6 +2279,24 @@ end RankList
 def bop_pres_fluxh (bop : RankList → RankList → RankList) : Prop :=
   ∀ (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr ys),
   fluxh (bop ⟨xr,xs⟩ ⟨yr,ys⟩).r (bop ⟨xr,xs⟩ ⟨yr,ys⟩).v
+
+lemma umm?? : bop_pres_fluxh RankList.add''' := by
+  unfold bop_pres_fluxh fluxh
+  intro xr yr xs ys hx hy
+  cases xs
+  case nil =>
+    rw [RankList.add''']
+    simp!
+    exact hy
+  case cons x xs =>
+    cases ys
+    case nil =>
+      simp!
+      simp! at hx
+      exact hx
+    case cons y ys =>
+      simp!
+      apply RankList.normalise_has_fluxh
 
 structure Fluxion where
   f : RankList
@@ -2222,7 +2344,7 @@ theorem addh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
                 exact yh.1
               rw [List.getLast?_cons] at yh
               rw [List.getLast?_cons,
-                  RankList.add_n_zero_getLast?_of_ne_nil,
+                  RankList.getLast?_addNZero_of_ne_nil,
                   List.getLast?_cons]
               · cases xs
                 case nil =>
@@ -2259,14 +2381,14 @@ theorem addh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
               rw [List.getLast?_cons]
               apply getD_decide (fun a ↦ ¬(some a) = some 0)
               · intro z hz
-                rw [←hz, RankList.add_n_zero_getLast?_of_ne_nil]
+                rw [←hz, RankList.getLast?_addNZero_of_ne_nil]
                 · exact h
                 rw [RankList.v_add_eq_addv]
                 apply RankList.addv_nil_of_nil
                 cases (min (yr - (xr + 1)).toNat (RankList.rlzCount ys))
                 case zero => simp! ; exact h
                 case succ n =>
-                  rw [RankList.add_n_zero_getLast?_of_gt_0]
+                  rw [RankList.getLast?_addNZero_of_gt_0]
                   · rw [Option.some_inj]
                     apply getD_decide (fun a ↦ ¬a = 0)
                     · intro k hk
@@ -2281,10 +2403,10 @@ theorem addh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
                 rw [←h,
                   (by simp : (
                       (RankList.add ⟨xr, x :: xs⟩ ⟨yr - (↑(RankList.rlzCount ys) + 1), RankList.remLeadZero ys⟩).v.getLast?
-                      = (RankList.add_n_zero 0
+                      = (RankList.addNZero 0
                       (RankList.add ⟨xr, x :: xs⟩ ⟨yr - (↑(RankList.rlzCount ys) + 1), RankList.remLeadZero ys⟩).v).getLast?))]
                 congr 2
-                rw [RankList.add_n_zero_getLast?_of_ne_nil]
+                rw [RankList.getLast?_addNZero_of_ne_nil]
                 · exact h
                 rw [RankList.v_add_eq_addv,
                     RankList.addv,
@@ -2323,7 +2445,7 @@ theorem addh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
                 · simp! at xh
                   exact xh.1
                 rw [List.getLast?_cons,
-                    RankList.add_n_zero_getLast?_of_ne_nil,
+                    RankList.getLast?_addNZero_of_ne_nil,
                     List.getLast?_cons]
                 · simp!
                   apply getD_decide (fun a ↦ ¬a = 0)
@@ -2480,8 +2602,8 @@ theorem addh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
                       exact ynil
                     case inr ynil =>
                       rw [decite_false]
-                      · sorry
-                        apply addh
+                      · rw [List.head_cons, List.head_cons, List.tail_cons, List.tail_cons]
+                        apply addh xr (yr - ↑(RankList.rlzCount (y :: ys).tail).succ) ((x + y) :: RankList.addNZero (min (RankList.rlzCount xs) (RankList.rlzCount ys)) (RankList.add ⟨xr - ↑(RankList.rlzCount xs).succ,RankList.remLeadZero xs ⟩ ⟨yr - ↑(RankList.rlzCount ys).succ,RankList.remLeadZero ys ⟩).v) (RankList.remLeadZero ys)
                         · unfold fluxh
                           simp!
                           exact hhead
