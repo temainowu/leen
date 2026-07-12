@@ -1302,83 +1302,28 @@ theorem mulh (xr yr : ℤ) (xs ys : List ℚ) (xh : fluxh xr xs) (yh : fluxh yr 
     cases ys
     case nil => simp!
     case cons y ys =>
-      rw [RankList.mul_r]
-      · simp!
-        rw [RankList.mulv_cons_cons]
-        simp
-        simp at yh xh
+      rw [RankList.mul]
+      · rw [RankList.mulv]
+        simp only [reduceCtorEq,
+                   IsEmpty.forall_iff,
+                   List.head?_cons, ne_eq,
+                   Option.some.injEq, mul_eq_zero,
+                   not_or,true_and]
+        simp only [reduceCtorEq,
+                   IsEmpty.forall_iff,
+                   List.head?_cons, ne_eq,
+                   Option.some.injEq, true_and] at yh xh
         constructor
-        · constructor
-          · exact xh.1
-          exact yh.1
-        cases ys
-        case nil =>
-          rw [RankList.mulv_comm,
-              RankList.mulv_singleton]
-          simp
-          rw [List.getLast?_cons,
-              List.getLast?_map,
-              Option.some_inj,
-              mul_comm,
-              Option.getD_map,
-              mul_eq_zero,
-              not_or]
-          constructor
-          · exact yh.1
-          contrapose! xh
-          intro h
-          cases xs
-          case nil =>
-            simp! at xh
-            contradiction
-          case cons x' xs =>
-            rw [List.getLast?_cons, Option.some_inj]
-            exact xh
-        case cons y' ys =>
-          rw [List.getLast?_cons,
-              List.map_cons,
-              Option.some_inj]
-          cases xs
-          case nil =>
-            simp
-            rw [List.getLast?_cons,
-                List.getLast?_map]
-            simp
-            constructor
-            · exact xh.1
-            rw [List.getLast?_cons_cons,
-                List.getLast?_cons,
-                Option.some_inj] at yh
-            exact yh.2
-          case cons x' xs =>
-            rw [RankList.getLast?_zodd]
-            · rw [Option.getD_some,
-                  RankList.length_mulv]
-              · simp!
-                rw [RankList.getLast?_mulv,
-                    List.getLast?_cons_cons,
-                    List.getLast?_cons,
-                    List.getLast?_cons]
-                · simp
-                  constructor
-                  · rw [List.getLast?_cons_cons,
-                        List.getLast?_cons,
-                        Option.some_inj] at xh
-                    exact xh.2
-                  rw [List.getLast?_cons_cons,
-                      List.getLast?_cons,
-                      Option.some_inj] at yh
-                  exact yh.2
-                · simp
-                simp
-              · simp
-              simp
-            rw [RankList.length_mulv]
-            · simp
-            · simp
-            simp
-      · simp
-      simp
+        · exact ⟨xh.1,yh.1⟩
+        rw [←RankList.mulv,
+            RankList.getLast?_mulv]
+        · simp!
+          simp! at xh yh
+          exact ⟨xh.2,yh.2⟩
+        · simp
+        simp
+      · simp!
+      simp!
 
 def mul (x y : Fluxion) : Fluxion := {
   f := RankList.mul x.f y.f
