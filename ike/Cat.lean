@@ -519,6 +519,10 @@ structure Funct (C D : Cat) where
     congr
     exact C.C2_ok x)
 
+lemma Fid : ∀ C D, ∀ f : Funct C D, ∀ x, f.F1 (C.ident x) = D.ident (f.F0 x) := by
+  intro C D ⟨F0,F1,hdom,hcod,F2⟩ x
+  simp!
+
 -- Category Isomorphism:
 
 structure iso (C D : Cat) where
