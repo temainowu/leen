@@ -27,9 +27,6 @@ structure Cat.{u} where
   pair_inv_lrC2ok : ∀ x : C2, x = pair (left x) (rite x) (C2_ok x)
   -- pair and (left × rite × C2_ok) are inverses
 
-lemma pair_inv_lrC2ok {C : Cat} : ∀ x : C.C2,
-  x = C.pair (C.left x) (C.rite x) (C.C2_ok x) := C.pair_inv_lrC2ok
-
 -- Example of Natural numbers as a poset Category
 
 structure Poset1 α [Preorder α] where
@@ -1009,8 +1006,19 @@ instance {n : ℕ} {C : Cat} {f : Fin n → C.C1} : Fintype (Set C.C1) where
 @[simp]
 def hom (C : Cat) (d c : C.C0) : Set C.C1 := { x | C.dom x = d ∧ C.cod x = c }
 
+
+-- I forgot what the purpose of this was:
 def this_kind_of_cat {C : Cat} {A B : C.C0} := ∀ a ∈ hom C A B, ∀ b ∈ hom C A B,
   (∀ c : C.C0, Set.ncard (hom C A c) * (Set.ncard (hom C c B)) = 0) ∨ (a = b)
+/-
+between any two objects A and B in the category,
+the only time that |hom A B| > 1
+is when for any other object Z
+either |hom A Z| = 0 or |Hom Z B| = 0
+i.e.
+whenever x = y∘z, x is uniqely defined by dom(z) and cod(y)
+
+-/
 
 -- "Preorder Category" on a Category
 
@@ -1113,19 +1121,6 @@ structure SetComp.{u} where
 
 @[simp]
 def funtypefix {α β γ} (h : β = α) (f : α → γ) : β → γ := by rw [h] ; exact f
--- (fun (x : β) => f ((cast h x) : α))
-
-lemma ftf_l {α β γ} {x : β} {f : α → γ} (h : β = α) :
-  cast (by rw [h] : (α → γ) = (β → γ)) f x = f (cast h x) := by
-  sorry
-
-
-/-
-lemma funtypefix_inj_on_le {α β γ a b} {x : α} {y : β} {x' : a} {y' : b}
-  {f : α → γ} {g : β → γ} [LE γ] {h0 : α = a} {h1 : β = b} (h : f x ≤ g y)
-  (hx : x ≍ x') (hy : y ≍ y') : funtypefix h0 f x' ≤ funtypefix h1 g y' := by
-    simp!
--/
 
 lemma le_over_heq a b (al : LinearOrder a) (bl : LinearOrder b)
   (h : a = b) (hl : al ≍ bl) (x y : a) (x' y' : b) (hx : x ≍ x') (hy : y ≍ y')
@@ -1201,34 +1196,48 @@ def Lin : Cat where
   ident x := ⟨x.a,x.a,x.l,x.l,id,by simp⟩
   left p := ⟨p.b,p.c,p.bl,p.cl,p.g,p.hg⟩
   rite p := ⟨p.a,p.b,p.al,p.bl,p.f,p.hf⟩
-  comp p := ⟨p.a,p.c,p.al,p.cl,p.g ∘ p.f,by simp! ; intro x y h; exact p.hg (p.f x) (p.f y) (p.hf x y h)⟩
-  pair g f h := ⟨f.a,f.b,g.b,f.al,f.bl,g.bl,f.f,funtypefix (by simp! at h ; exact h.1.symm) g.f,f.h, by
+  comp p := ⟨p.a,p.c,p.al,p.cl,p.g ∘ p.f,
+    by simp! ; intro x y h; exact p.hg (p.f x) (p.f y) (p.hf x y h)⟩
+  pair g f h := ⟨f.a,f.b,g.b,f.al,f.bl,g.bl,f.f,g.f ∘ cast (by simp! at h ; exact h.1.symm),f.h, by
       intro x y h0
+      simp!
+      apply g.h
       simp! at h
-      have h1 := le_over_heq f.b g.a f.bl g.al h.1.symm h.2.symm x y (cast h.1.symm x) (cast h.1.symm y) (by simp) (by simp) h0
-      have h2 := g.h (cast h.1.symm x) (cast h.1.symm y) h1
-      rw [←(@compare_le_iff_le _ g.bl)]
-      rw [←(@compare_le_iff_le _ g.bl)] at h2
-      contrapose! h2
-      rw [←h2]
-      congr
-      · rfl
-      -- rcases f with ⟨xa,xb,xal,xOrder/-⟨xtotal,xd0,xd1,xd2,xmindef,xmaxdef,xc⟩-/,xf,xh⟩
-      -- rcases g with ⟨ya,yb,yOrder/-⟨ytotal,yd0,yd1,yd2,ymindef,ymaxdef,yc⟩-/,ybl,yf,yh⟩
+      exact le_over_heq f.b g.a f.bl g.al
+        h.1.symm h.2.symm x y (cast h.1.symm x) (cast h.1.symm y)
+        (by simp) (by simp) h0
     ⟩
   ident_dom := by simp
   ident_cod := by simp
   C2_ok := by simp
   dom_comp := by simp
   cod_comp := by simp
-  left_pair := by simp ; intro ⟨aa,ab,aal,abl,af,ah⟩ ⟨ba,bb,bal,bbl,bf,bh⟩ hp hq ; simp! ; simp! at hp hq ; exact And.intro (symm hp) (by symm ; exact hq)
+  left_pair := by
+    simp!
+    intro ⟨aa,ab,aal,abl,af,ah⟩ ⟨ba,bb,bal,bbl,bf,bh⟩ hp hq
+    simp!
+    simp! at hp hq
+    constructor
+    · exact symm hp
+    constructor
+    · symm
+      exact hq
+    congr
+    · exact hp.symm
+    sorry -- I hate this :>
   rite_pair := by simp
   ident_lid := by
     intro ⟨a,b,al,bl,f,h⟩
     simp!
     rfl
-  ident_rid := by simp
-  pair_inv_lrC2ok := by simp
+  ident_rid := by
+    intro ⟨a,b,al,bl,f,h⟩
+    simp!
+    rfl
+  pair_inv_lrC2ok := by
+    intro ⟨a,b,c,al,bl,cl,f,g,fh,gh⟩
+    simp!
+    rfl
 
 -- Card := @Prord.P SetCat _
 -- Ord := @Prord.P Lin _
