@@ -1014,7 +1014,7 @@ def this_kind_of_cat {C : Cat} {A B : C.C0} := ∀ a ∈ hom C A B, ∀ b ∈ ho
 
 -- "Preorder Category" on a Category
 
-def surjective (f : α → β) : Prop := ∀ b : β, ∃ a : α, f a = b
+def surjective {α β} (f : α → β) : Prop := ∀ b : β, ∃ a : α, f a = b
 
 def isomorphic {C : Cat} (A B : C.C0) : Prop :=
   ∃ f g : C.C1, ∃ h :
@@ -1046,22 +1046,39 @@ structure Prord (C : Cat) where
     (∃ m : C.C1, monic m ∧ F (C.dom m) = X ∧ F (C.cod m) = Y) ∨
     (∃ e : C.C1, epic  e ∧ F (C.cod e) = X ∧ F (C.dom e) = Y)
 
+-- does Prord ∘ Prord ∘ Prord = Prord ∘ Prord ?
+-- is Prord ∘ Prord always a Partial Order?
+
 theorem PrordP_iso (C : Cat) (x y : Prord C) : isom x.P y.P := by
   apply isoisisom
-  rcases x with ⟨xP, xF, xhf, xh0, xh1⟩
-  rcases y with ⟨yP, yF, yhf, yh0, yh1⟩
+  rcases x with ⟨xP, xF, ⟨x_sur, xhf⟩, xh0, xh1⟩
+  rcases y with ⟨yP, yF, ⟨y_sur, yhf⟩, yh0, yh1⟩
   simp!
   exact {
     F := {
-      F0 := sorry
-      F1 := sorry
+      F0 := by
+        intro i
+        specialize x_sur i
+        apply yF
+        exact Classical.choose x_sur
+      F1 := /-by
+        intro i
+        have dom := Classical.choose (x_sur (xP.dom i))
+        have cod := Classical.choose (x_sur (xP.cod i))
+        specialize xh1 (xP.dom i) (xP.cod i)
+        apply (xh0 _ i) at xh1.1-/
+        sorry
       hdom := sorry
       hcod := sorry
       F2 := sorry
       hF2 := sorry
     }
     G := {
-      F0 := sorry
+      F0 := by
+        intro i
+        specialize y_sur i
+        apply xF
+        exact Classical.choose y_sur
       F1 := sorry
       hdom := sorry
       hcod := sorry
@@ -1245,14 +1262,21 @@ theorem add_zero' {C : Cat} : isom (C + 0) C := by apply isoisisom ; exact {
       case inl x => rfl
       case inr x => rcases x with ⟨⟨_,h⟩,_,_⟩ ; contradiction
     F2
-      | Sum.inl x => sorry
-      | Sum.inr x => ()
+      | Sum.inl x => x
+      | Sum.inr ⟨⟨_,hm⟩,_,_,_,_⟩ => by contradiction
     hF2 := by
       funext x
       simp!
       cases x
-      case inl x => simp
-
+      case inl x =>
+        rw [C.pair_inv_lrC2ok x]
+        simp!
+        congr
+        · rw [←C.pair_inv_lrC2ok x]
+        rw [←C.pair_inv_lrC2ok x]
+      case inr x =>
+        rcases x with ⟨⟨_,h⟩,_,_,_,_⟩
+        contradiction
   }
   hc := by sorry
   hd := by sorry
@@ -1274,6 +1298,20 @@ theorem add_comm' {C D : Cat} : isom (C + D) (D + C) := by apply isoisisom ; exa
       cases x
       case inl x => rfl
       case inr x => rfl
+    F2
+      | Sum.inl x => Sum.inr x
+      | Sum.inr x => Sum.inl x
+    hF2 := by
+      funext x
+      cases x
+      case inl x =>
+        simp!
+        rw [(D + C).pair_inv_lrC2ok (Sum.inr x)]
+        congr
+      case inr x =>
+        simp!
+        rw [(D + C).pair_inv_lrC2ok (Sum.inl x)]
+        congr
   }
   G := {
     F0
@@ -1290,6 +1328,20 @@ theorem add_comm' {C D : Cat} : isom (C + D) (D + C) := by apply isoisisom ; exa
       cases x
       · rfl
       rfl
+    F2
+      | Sum.inl x => Sum.inr x
+      | Sum.inr x => Sum.inl x
+    hF2 := by
+      funext x
+      cases x
+      case inl x =>
+        simp!
+        rw [(C + D).pair_inv_lrC2ok (Sum.inr x)]
+        congr
+      case inr x =>
+        simp!
+        rw [(C + D).pair_inv_lrC2ok (Sum.inl x)]
+        congr
   }
   hc := by sorry
   hd := by sorry
@@ -1365,7 +1417,7 @@ theorem mul_comm' (C D : Cat) : isom (C * D) (D * C) := by apply isoisisom ; exa
     hdom x := by rfl
     hcod x := by rfl
     F2 | (a,b) => (b,a)
-    hF2 := by funext (a,b) ; simp! ; exact (D * C).pair_inv_lrC2ok (b,a)
+    hF2 := by funext (a,b) ; simp! ; exact (C * D).pair_inv_lrC2ok (b,a)
   }
   hc := by rfl
   hd := by rfl
@@ -1420,7 +1472,12 @@ theorem mul_add' (A B C : Cat) : isom (A * (B + C)) ((A * B) + (A * C)) :=
       cases x
       case inl b =>
         simp!
-        rw []
+        rw [(A * B + A * C).pair_inv_lrC2ok (Sum.inl (a,b))]
+        congr
+      case inr c =>
+        simp!
+        rw [(A * B + A * C).pair_inv_lrC2ok (Sum.inr (a,c))]
+        congr
     }
   G := {
     F0
@@ -1435,6 +1492,22 @@ theorem mul_add' (A B C : Cat) : isom (A * (B + C)) ((A * B) + (A * C)) :=
     hcod
       | Sum.inl x => by rfl
       | Sum.inr x => by rfl
+    F2
+      | Sum.inl ⟨a, b⟩ => (a, Sum.inl b)
+      | Sum.inr ⟨a, c⟩ => (a, Sum.inr c)
+    hF2 := by
+      funext x
+      cases x
+      case inl ab =>
+        rcases ab with ⟨a,b⟩
+        simp!
+        rw [(A * (B + C)).pair_inv_lrC2ok (a, Sum.inl b)]
+        congr
+      case inr ac =>
+        rcases ac with ⟨a,c⟩
+        simp!
+        rw [(A * (B + C)).pair_inv_lrC2ok (a, Sum.inr c)]
+        congr
   }
   hc := by sorry
   hd := by sorry
@@ -1542,6 +1615,7 @@ def connect_once (C D : Cat) (c : C.C0) (d : D.C0) : Cat where
   rite_pair := by sorry
   ident_lid := by sorry
   ident_rid := by sorry
+  pair_inv_lrC2ok := by sorry
 
 
 /-
@@ -1623,6 +1697,40 @@ def FN2 : Funct NatPoset 2 where
         cases m
         · rfl
         rfl
+  F2
+    | ⟨_,_,0,_,_⟩ => ⟨0,0,0, by rfl, by rfl⟩
+    | ⟨_,0,_,_,_⟩ => ⟨0,0,1, by rfl, by simp⟩
+    | ⟨0,_,_,_,_⟩ => ⟨0,1,1, by simp, by rfl⟩
+    | ⟨_,_,_,_,_⟩ => ⟨1,1,1, by rfl, by rfl⟩
+  hF2 := by
+    funext x
+    rcases x with ⟨m,n,p,hmn,hnp⟩
+    cases p
+    case zero =>
+      cases n
+      case succ n => contradiction
+      case zero =>
+        cases m
+        case succ m => contradiction
+        case zero =>
+          simp!
+          congr
+    case succ p =>
+      cases n
+      case zero =>
+        cases m
+        case succ m => contradiction
+        case zero =>
+          simp!
+          congr
+      case succ n =>
+        cases m
+        case zero =>
+          simp!
+          congr
+        case succ m =>
+          simp!
+          congr
 
 -- nat ⊕ bool with ≤, (· = 0), and → :
 
@@ -1682,6 +1790,9 @@ theorem Nat_eq_NatWithInit : isom NatPoset (MapCat 1 NatPoset (fun _ ↦ Nat.zer
           cases n
           · simp at h
           rfl
+    F2
+      | ⟨⟩ => sorry
+    hF2 := by sorry
   }
   G := {
     F0
@@ -1869,7 +1980,7 @@ instance {n} : OfNat (Cat' Unit (Fin n) (fun _ ↦ (· ≤ ·))) n where
       simp
   }
 
-def prod' (C : Cat' I C0 p) (D : Cat' J D0 q) :
+def prod' {I C0 p J D0 q} (C : Cat' I C0 p) (D : Cat' J D0 q) :
   Cat' (I × J) (C0 × D0) (fun i x y ↦ (p i.1 x.1 y.1) ∧ (q i.2 x.2 y.2)) where
   ident x := {
     index := ((C.ident x.1).index, (D.ident x.2).index)
